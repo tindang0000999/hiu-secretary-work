@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>Thư Ký AI • Bảng Duyệt Nhật Ký Công Việc Zalo (Autofill)</title>
+  <style>
+    :root {
+      --primary: #168078;
+      --primary-hover: #0e6963;
+      --bg: #f4f6f4;
+      --card: #ffffff;
+      --border: #dce5e1;
+      --text: #172f38;
+      --muted: #667e83;
+      --accent: #2563eb;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 16px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .title-area h1 { font-size: 20px; font-weight: 800; color: #172c35; }
+    .title-area p { color: var(--muted); font-size: 13px; }
+    
+    .action-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .date-picker { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff; }
+    
+    .btn { background: var(--primary); color: white; border: none; padding: 9px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #eef4f1; color: #234d4b; }
+    .btn-save { background: #2563eb; }
+    .btn-save:hover { background: #1d4ed8; }
+    
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 16px; }
+    
+    .tablewrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; min-width: 950px; }
+    th { padding: 10px 12px; background: #f8fafc; border-bottom: 2px solid var(--border); color: var(--muted); font-weight: 700; white-space: nowrap; }
+    td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    tr:hover { background: #fbfcfb; }
+    
+    input[type="text"], input[type="email"], input[type="password"], select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; width: 100%; background: #fff; outline: none; }
+    input:focus, select:focus { border-color: var(--primary); }
+    .input-autofilled { border-color: #10b981 !important; background: #f0fdf4 !important; font-weight: 600; }
+    
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    
+    .alert { padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; display: none; line-height: 1.4; }
+    .alert-success { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; display: block; }
+    .alert-error { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; display: block; }
+    
+    .summary-box { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .sum-tile { flex: 1; min-width: 140px; background: #fff; border: 1px solid var(--border); padding: 12px; border-radius: 10px; }
+    .sum-tile span { font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 700; }
+    .sum-tile strong { display: block; font-size: 22px; font-weight: 800; margin-top: 4px; color: #172c35; }
+  </style>
+</head>
+<body>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+<div class="container">
+  <!-- Authentication Card -->
+  <div class="card" style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+    <div style="flex:1; min-width:200px;">
+      <label style="font-size:11px; font-weight:700; display:block; margin-bottom:4px; text-transform:uppercase; color:var(--muted);">Tài khoản Desklog</label>
+      <input id="loginEmail" type="email" value="dangtin107@gmail.com">
+    </div>
+    <div style="flex:1; min-width:180px;">
+      <label style="font-size:11px; font-weight:700; display:block; margin-bottom:4px; text-transform:uppercase; color:var(--muted);">Mật khẩu</label>
+      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <div>
+      <button class="btn btn-secondary" onclick="loginDesklog()">🔑 Đăng nhập để lưu</button>
+    </div>
+    <div style="width:100%; font-size:12px; color:var(--muted);" id="authStatus">Chưa đăng nhập — chỉ xem được bản nháp.</div>
+  </div>
+
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="title-area">
+      <h1>📑 Thư Ký AI • Bảng Duyệt Nhật Ký Công Việc Zalo</h1>
+      <p>Tự động học &amp; ghi nhớ (Autofill): Điền Họ tên và Phòng ban 1 lần, các lần sau AI sẽ tự động điền sẵn!</p>
+    </div>
+    <div class="action-bar">
+      <input type="date" id="selectDate" class="date-picker">
+      <button class="btn btn-secondary" onclick="scanZaloToday()">⚡ Quét tin nhắn ngày này</button>
+      <button class="btn btn-save" id="btnApproveAll" onclick="approveAndSaveToDesklog()">🚀 Duyệt &amp; Lưu Vào Desklog</button>
+    </div>
+  </div>
+
+  <div id="statusAlert" class="alert"></div>
+
+  <!-- Summary Tiles -->
+  <div class="summary-box">
+    <div class="sum-tile">
+      <span>Đầu việc AI đề xuất</span>
+      <strong id="totalSuggested">0</strong>
+    </div>
+    <div class="sum-tile">
+      <span>Được chọn lưu</span>
+      <strong id="totalSelected" style="color: var(--primary);">0</strong>
+    </div>
+    <div class="sum-tile">
+      <span>Trí nhớ Autofill</span>
+      <strong id="totalAutofill" style="color: #10b981;">0 liên hệ</strong>
+    </div>
+  </div>
+
+  <!-- Table Card: Strict order as requested by user -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap:wrap; gap:8px;">
+      <h3 style="font-size: 15px; font-weight: 700;">Danh Sách Chờ Duyệt (Thứ tự: Zalo ➔ Họ Tên Chuẩn ➔ Phòng Ban):</h3>
+      <span style="font-size: 12px; color: var(--muted);">💡 Ô màu xanh lá là thông tin AI đã tự động điền từ trí nhớ (Autofill).</span>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 36px; text-align: center;"><input type="checkbox" id="checkAll" onchange="toggleSelectAll(this.checked)" checked></th>
+            <th style="width: 140px;">Người gửi (Zalo)</th>
+            <th style="width: 170px; color: var(--accent);">Họ tên đầy đủ (Chuẩn)</th>
+            <th style="width: 190px; color: var(--accent);">Phòng ban / Đơn vị</th>
+            <th style="width: 110px;">Đối tượng</th>
+            <th style="width: 80px;">Cơ sở</th>
+            <th style="width: 100px;">Loại</th>
+            <th>Tiêu đề công việc</th>
+            <th style="width: 110px;">Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <!-- Injected via JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://pvbpqhoiraacrpyvjiph.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2YnBxaG9pcmFhY3JweXZqaXBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4OTM1MTIsImV4cCI6MjEwNzQ2OTUxMn0.HFfUjADJgYi4D5hjiPJS-7SpQVcq3nsjuelOXQ32mwo';
+  const desklogClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  let desklogUser = null;
+
+  // Local Autofill Dictionary Storage
+  const LOCAL_DIR_KEY = 'hiu_autofill_directory';
+  function getAutofillMap() {
+    try {
+      const raw = localStorage.getItem(LOCAL_DIR_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch(e) { return {}; }
+  }
+
+  function saveAutofillEntry(zaloName, fullName, unit, role) {
+    if (!zaloName || !fullName) return;
+    const map = getAutofillMap();
+    map[zaloName.trim()] = {
+      full_name: fullName.trim(),
+      unit: (unit || '').trim(),
+      target_role: role || 'Nhân viên'
+    };
+    try {
+      localStorage.setItem(LOCAL_DIR_KEY, JSON.stringify(map));
+      updateSummary();
+    } catch(e) {}
+  }
+
+  async function loginDesklog() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const { data, error } = await desklogClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      document.getElementById('authStatus').innerText = 'Đăng nhập lỗi: ' + error.message;
+      return;
+    }
+    desklogUser = data.user;
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('authStatus').innerHTML = '<span style="color:#15803d; font-weight:700;">✅ Đã đăng nhập: ' + desklogUser.email + '</span>';
+  }
+
+  desklogClient.auth.getSession().then(({ data }) => {
+    desklogUser = data.session?.user || null;
+    if (desklogUser) {
+      document.getElementById('authStatus').innerHTML = '<span style="color:#15803d; font-weight:700;">✅ Đã đăng nhập: ' + desklogUser.email + '</span>';
+    }
+  });
+
+  let digestItems = [];
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  document.getElementById('selectDate').value = todayStr;
+
+  function loadDigest(items) {
+    const map = getAutofillMap();
+    digestItems = (items || []).map(item => {
+      // Check if we learned this person before
+      const key = (item.zalo_name || item.person_name || '').trim();
+      const learned = map[key];
+      if (learned) {
+        return {
+          ...item,
+          person_name: learned.full_name || item.person_name,
+          unit: learned.unit || item.unit,
+          target_role: learned.target_role || item.target_role,
+          is_autofilled: true
+        };
+      }
+      return { ...item, is_autofilled: false };
+    });
+
+    renderTable();
+    updateSummary();
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    if (!digestItems || digestItems.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:24px; color:var(--muted);">Chưa có công việc nào. Bấm "⚡ Quét tin nhắn ngày này" để tải.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = digestItems.map((item, idx) => {
+      const autoClass = item.is_autofilled ? 'input-autofilled' : '';
+      return `
+      <tr>
+        <td style="text-align: center;"><input type="checkbox" ${item.selected ? 'checked' : ''} onchange="updateSelected(${idx}, this.checked)"></td>
+        <td><strong>${item.zalo_name || item.person_name}</strong></td>
+        <td><input type="text" class="${autoClass}" value="${item.person_name || ''}" placeholder="Họ tên thật..." onchange="onUserEditedRow(${idx}, 'person_name', this.value)"></td>
+        <td><input type="text" class="${autoClass}" value="${item.unit || ''}" placeholder="Phòng ban..." onchange="onUserEditedRow(${idx}, 'unit', this.value)"></td>
+        <td>
+          <select onchange="onUserEditedRow(${idx}, 'target_role', this.value)">
+            <option value="Giảng viên" ${item.target_role === 'Giảng viên' ? 'selected' : ''}>Giảng viên</option>
+            <option value="Nhân viên" ${item.target_role === 'Nhân viên' ? 'selected' : ''}>Nhân viên</option>
+            <option value="Sinh viên" ${item.target_role === 'Sinh viên' ? 'selected' : ''}>Sinh viên</option>
+            <option value="Khác" ${item.target_role === 'Khác' ? 'selected' : ''}>Khác</option>
+          </select>
+        </td>
+        <td>
+          <select onchange="updateField(${idx}, 'site', this.value)">
+            <option value="DBP" ${item.site === 'DBP' ? 'selected' : ''}>DBP</option>
+            <option value="120HB" ${item.site === '120HB' ? 'selected' : ''}>120HB</option>
+            <option value="D2" ${item.site === 'D2' ? 'selected' : ''}>D2</option>
+          </select>
+        </td>
+        <td>
+          <select onchange="updateField(${idx}, 'category', this.value)">
+            <option value="Phần cứng" ${item.category === 'Phần cứng' ? 'selected' : ''}>Phần cứng</option>
+            <option value="Phần mềm" ${item.category === 'Phần mềm' ? 'selected' : ''}>Phần mềm</option>
+          </select>
+        </td>
+        <td><input type="text" value="${item.title || ''}" onchange="updateField(${idx}, 'title', this.value)"></td>
+        <td>
+          <select onchange="updateField(${idx}, 'status', this.value)">
+            <option value="Hoàn thành" ${item.status === 'Hoàn thành' ? 'selected' : ''}>Hoàn thành</option>
+            <option value="Đang xử lý" ${item.status === 'Đang xử lý' ? 'selected' : ''}>Đang xử lý</option>
+            <option value="Mới tiếp nhận" ${item.status === 'Mới tiếp nhận' ? 'selected' : ''}>Mới tiếp nhận</option>
+          </select>
+        </td>
+      </tr>
+      `;
+    }).join('');
+  }
+
+  function onUserEditedRow(idx, field, val) {
+    if (!digestItems[idx]) return;
+    digestItems[idx][field] = val;
+    // Auto learn and save into dictionary!
+    const item = digestItems[idx];
+    saveAutofillEntry(item.zalo_name, item.person_name, item.unit, item.target_role);
+  }
+
+  function updateField(idx, field, val) {
+    if (digestItems[idx]) digestItems[idx][field] = val;
+  }
+
+  function updateSelected(idx, val) {
+    if (digestItems[idx]) digestItems[idx].selected = val;
+    updateSummary();
+  }
+
+  function toggleSelectAll(val) {
+    digestItems.forEach(i => i.selected = val);
+    renderTable();
+    updateSummary();
+  }
+
+  function updateSummary() {
+    const total = digestItems.length;
+    const selected = digestItems.filter(i => i.selected).length;
+    const map = getAutofillMap();
+    const mapCount = Object.keys(map).length;
+
+    document.getElementById('totalSuggested').innerText = total;
+    document.getElementById('totalSelected').innerText = selected;
+    document.getElementById('totalAutofill').innerText = mapCount + ' người';
+  }
+
+  function renderDigest(data) {
+    if (!data || data.kind !== 'zalo_daily_digest') return;
+    const alertEl = document.getElementById('statusAlert');
+    const day = data.date || document.getElementById('selectDate').value;
+    const items = Array.isArray(data.items) ? data.items : [];
+    loadDigest(items.map(item => ({ ...item, selected: true })));
+    const tbl = document.getElementById('tableBody');
+    if (tbl) tbl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    alertEl.className = items.length ? 'alert alert-success' : 'alert';
+    alertEl.style.display = 'block';
+    alertEl.textContent = data.error ? `Không thể quét ngày ${day}: ${data.error}`
+      : items.length ? `✅ Đã tìm thấy ${items.length} tin nhắn hỗ trợ thật ngày ${day}. Thông tin Họ tên & Phòng ban đã được Autofill sẵn!`
+      : `Ngày ${day}: Chưa thu được tin hỗ trợ HIU thật nào mới.`;
+  }
+
+  async function scanZaloToday() {
+    const day = document.getElementById('selectDate').value;
+    const alertEl = document.getElementById('statusAlert');
+    alertEl.className = 'alert';
+    alertEl.style.display = 'block';
+    alertEl.textContent = `Đang nhờ trợ lý trên máy tổng hợp tin Zalo ngày ${day}...`;
+    if (!window.aicw || typeof aicw.send !== 'function') {
+      alertEl.className = 'alert alert-error';
+      alertEl.textContent = 'Cần mở bảng trong ứng dụng AICoworker để gửi yêu cầu.';
+      return;
+    }
+    try {
+      await aicw.send(`Quét tin Zalo HIU thật ngày ${day} cho Thư ký; gửi kết quả vào bảng duyệt`, { action: 'scan_zalo_daily', date: day });
+    } catch (err) {
+      alertEl.className = 'alert alert-error';
+      alertEl.textContent = `Không gửi được yêu cầu quét: ${err.message}`;
+    }
+  }
+
+  function setupAicwBridge() {
+    if (window.aicw) {
+      if (aicw.data) {
+        renderDigest(aicw.data);
+      }
+      aicw.on('data', function(d) {
+        renderDigest(d);
+      });
+      aicw.on('init', function(info) {
+        if (info && info.data) renderDigest(info.data);
+      });
+    }
+  }
+
+  // Run bridge setup
+  setupAicwBridge();
+  // If window.aicw is injected slightly after script execution
+  window.addEventListener('DOMContentLoaded', setupAicwBridge);
+  setTimeout(setupAicwBridge, 300);
+  setTimeout(setupAicwBridge, 1000);
+
+
+  async function approveAndSaveToDesklog() {
+    const approved = digestItems.filter(i => i.selected);
+    if (approved.length === 0) {
+      alert("Vui lòng tick chọn ít nhất 1 đầu việc để lưu.");
+      return;
+    }
+
+    if (!desklogUser) {
+      alert("Anh vui lòng nhập mật khẩu và bấm '🔑 Đăng nhập để lưu' ở khung phía trên trước khi lưu nhé!");
+      return;
+    }
+
+    const btn = document.getElementById('btnApproveAll');
+    btn.disabled = true;
+    btn.innerText = `Đang lưu ${approved.length} việc...`;
+
+    try {
+      const records = approved.map(item => ({
+        owner_id: desklogUser.id,
+        work_date: item.work_date,
+        person_name: item.person_name,
+        target_role: item.target_role,
+        site: item.site,
+        unit: item.unit,
+        category: item.category,
+        title: item.title,
+        notes: item.notes,
+        status: item.status
+      }));
+
+      const { data: saved, error: saveError } = await desklogClient.from('work_items').insert(records).select('id');
+      if (saveError) throw saveError;
+
+      const alertEl = document.getElementById('statusAlert');
+      alertEl.className = 'alert alert-success';
+      alertEl.innerText = `🎉 Đã duyệt và lưu thành công ${approved.length} đầu việc vào Desklog Supabase!`;
+      
+      // Auto save all approved mappings into directory
+      approved.forEach(item => {
+        saveAutofillEntry(item.zalo_name, item.person_name, item.unit, item.target_role);
+      });
+
+      digestItems = digestItems.filter(i => !i.selected);
+      renderTable();
+      updateSummary();
+    } catch (err) {
+      alert("Lỗi khi lưu Supabase: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "🚀 Duyệt & Lưu Vào Desklog";
+    }
+  }
+
+  loadDigest([]);
+</script>
+</body>
+</html>

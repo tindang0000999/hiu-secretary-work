@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <title>Thư Ký AI • Bảng Duyệt Nhật Ký Công Việc Zalo (Autofill)</title>
+  <title>Thư Ký AI • Bảng Duyệt Nhật Ký Công Việc Zalo (Nhiều Ngày)</title>
   <style>
     :root {
       --primary: #168078;
@@ -16,34 +16,39 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background: var(--bg); color: var(--text); padding: 16px; }
-    .container { max-width: 1200px; margin: 0 auto; }
+    .container { max-width: 1240px; margin: 0 auto; }
     
     .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
     .title-area h1 { font-size: 20px; font-weight: 800; color: #172c35; }
     .title-area p { color: var(--muted); font-size: 13px; }
     
     .action-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .date-picker { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff; }
+    .date-box { display: flex; align-items: center; gap: 6px; background: #fff; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; font-weight: 600; color: var(--muted); }
+    .date-picker { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: #fff; outline: none; }
     
-    .btn { background: var(--primary); color: white; border: none; padding: 9px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn { background: var(--primary); color: white; border: none; padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
     .btn:hover { background: var(--primary-hover); }
     .btn-secondary { background: #eef4f1; color: #234d4b; }
     .btn-save { background: #2563eb; }
     .btn-save:hover { background: #1d4ed8; }
     
+    .quick-chip { font-size: 12px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: #fff; cursor: pointer; color: var(--text); font-weight: 500; }
+    .quick-chip:hover { border-color: var(--primary); color: var(--primary); }
+    
     .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 16px; }
     
     .tablewrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; min-width: 950px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; min-width: 1050px; }
     th { padding: 10px 12px; background: #f8fafc; border-bottom: 2px solid var(--border); color: var(--muted); font-weight: 700; white-space: nowrap; }
     td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
     tr:hover { background: #fbfcfb; }
     
-    input[type="text"], input[type="email"], input[type="password"], select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; width: 100%; background: #fff; outline: none; }
+    input[type="text"], input[type="email"], input[type="password"], input[type="date"], select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; width: 100%; background: #fff; outline: none; }
     input:focus, select:focus { border-color: var(--primary); }
     .input-autofilled { border-color: #10b981 !important; background: #f0fdf4 !important; font-weight: 600; }
     
     .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .badge-date { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-weight: 600; }
     
     .alert { padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; display: none; line-height: 1.4; }
     .alert-success { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; display: block; }
@@ -76,15 +81,28 @@
     <div style="width:100%; font-size:12px; color:var(--muted);" id="authStatus">Chưa đăng nhập — chỉ xem được bản nháp.</div>
   </div>
 
-  <!-- Top Bar -->
+  <!-- Top Bar: Multiple Dates Selection -->
   <div class="top-bar">
     <div class="title-area">
-      <h1>📑 Thư Ký AI • Bảng Duyệt Nhật Ký Công Việc Zalo</h1>
-      <p>Tự động học &amp; ghi nhớ (Autofill): Điền Họ tên và Phòng ban 1 lần, các lần sau AI sẽ tự động điền sẵn!</p>
+      <h1>📑 Thư Ký AI • Bảng Duyệt Nhật Ký Công Việc (Nhiều Ngày)</h1>
+      <p>Tổng hợp 2-3 ngày hoặc cả tuần một lần: Chọn khoảng ngày và bấm Quét để duyệt hàng loạt vào Desklog!</p>
     </div>
     <div class="action-bar">
-      <input type="date" id="selectDate" class="date-picker">
-      <button class="btn btn-secondary" onclick="scanZaloToday()">⚡ Quét tin nhắn ngày này</button>
+      <!-- Quick Range Shortcuts -->
+      <div style="display:flex; gap:6px; margin-right:4px;">
+        <button class="quick-chip" onclick="setQuickRange(1)">Hôm nay</button>
+        <button class="quick-chip" onclick="setQuickRange(3)">3 Ngày gần đây</button>
+        <button class="quick-chip" onclick="setQuickRange(7)">7 Ngày (1 Tuần)</button>
+      </div>
+
+      <div class="date-box">
+        <span>Từ</span>
+        <input type="date" id="startDate" class="date-picker">
+        <span>Đến</span>
+        <input type="date" id="endDate" class="date-picker">
+      </div>
+
+      <button class="btn btn-secondary" onclick="scanZaloDateRange()">⚡ Quét khoảng ngày này</button>
       <button class="btn btn-save" id="btnApproveAll" onclick="approveAndSaveToDesklog()">🚀 Duyệt &amp; Lưu Vào Desklog</button>
     </div>
   </div>
@@ -94,7 +112,7 @@
   <!-- Summary Tiles -->
   <div class="summary-box">
     <div class="sum-tile">
-      <span>Đầu việc AI đề xuất</span>
+      <span>Đầu việc trong khoảng ngày</span>
       <strong id="totalSuggested">0</strong>
     </div>
     <div class="sum-tile">
@@ -107,11 +125,11 @@
     </div>
   </div>
 
-  <!-- Table Card: Strict order as requested by user -->
+  <!-- Table Card -->
   <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap:wrap; gap:8px;">
-      <h3 style="font-size: 15px; font-weight: 700;">Danh Sách Chờ Duyệt (Thứ tự: Zalo ➔ Họ Tên Chuẩn ➔ Phòng Ban):</h3>
-      <span style="font-size: 12px; color: var(--muted);">💡 Ô màu xanh lá là thông tin AI đã tự động điền từ trí nhớ (Autofill).</span>
+      <h3 style="font-size: 15px; font-weight: 700;">Danh Sách Công Việc Cần Duyệt:</h3>
+      <span style="font-size: 12px; color: var(--muted);">💡 Cột Ngày cho biết việc phát sinh ngày nào. Ô màu xanh lá là thông tin đã Autofill.</span>
     </div>
 
     <div class="tablewrap">
@@ -119,12 +137,13 @@
         <thead>
           <tr>
             <th style="width: 36px; text-align: center;"><input type="checkbox" id="checkAll" onchange="toggleSelectAll(this.checked)" checked></th>
+            <th style="width: 100px;">Ngày</th>
             <th style="width: 140px;">Người gửi (Zalo)</th>
-            <th style="width: 170px; color: var(--accent);">Họ tên đầy đủ (Chuẩn)</th>
-            <th style="width: 190px; color: var(--accent);">Phòng ban / Đơn vị</th>
+            <th style="width: 160px; color: var(--accent);">Họ tên đầy đủ</th>
+            <th style="width: 180px; color: var(--accent);">Phòng ban / Đơn vị</th>
             <th style="width: 110px;">Đối tượng</th>
             <th style="width: 80px;">Cơ sở</th>
-            <th style="width: 100px;">Loại</th>
+            <th style="width: 95px;">Loại</th>
             <th>Tiêu đề công việc</th>
             <th style="width: 110px;">Trạng thái</th>
           </tr>
@@ -143,7 +162,6 @@
   const desklogClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   let desklogUser = null;
 
-  // Local Autofill Dictionary Storage
   const LOCAL_DIR_KEY = 'hiu_autofill_directory';
   function getAutofillMap() {
     try {
@@ -187,13 +205,31 @@
   });
 
   let digestItems = [];
-  const todayStr = new Date().toLocaleDateString('en-CA');
-  document.getElementById('selectDate').value = todayStr;
+
+  // Helper date formatting
+  function formatDate(d) {
+    return d.toISOString().split('T')[0];
+  }
+
+  function setQuickRange(days) {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - (days - 1));
+    document.getElementById('startDate').value = formatDate(start);
+    document.getElementById('endDate').value = formatDate(end);
+    scanZaloDateRange();
+  }
+
+  // Init default: 3 days range (today and 2 days prior)
+  const today = new Date();
+  const threeDaysAgo = new Date();
+  threeDaysAgo.setDate(today.getDate() - 2);
+  document.getElementById('startDate').value = formatDate(threeDaysAgo);
+  document.getElementById('endDate').value = formatDate(today);
 
   function loadDigest(items) {
     const map = getAutofillMap();
     digestItems = (items || []).map(item => {
-      // Check if we learned this person before
       const key = (item.zalo_name || item.person_name || '').trim();
       const learned = map[key];
       if (learned) {
@@ -215,7 +251,7 @@
   function renderTable() {
     const tbody = document.getElementById('tableBody');
     if (!digestItems || digestItems.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:24px; color:var(--muted);">Chưa có công việc nào. Bấm "⚡ Quét tin nhắn ngày này" để tải.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--muted);">Chưa có công việc nào trong khoảng ngày đã chọn. Bấm "⚡ Quét khoảng ngày này" để tải.</td></tr>';
       return;
     }
     tbody.innerHTML = digestItems.map((item, idx) => {
@@ -223,6 +259,7 @@
       return `
       <tr>
         <td style="text-align: center;"><input type="checkbox" ${item.selected ? 'checked' : ''} onchange="updateSelected(${idx}, this.checked)"></td>
+        <td><span class="badge badge-date">${item.work_date || ''}</span></td>
         <td><strong>${item.zalo_name || item.person_name}</strong></td>
         <td><input type="text" class="${autoClass}" value="${item.person_name || ''}" placeholder="Họ tên thật..." onchange="onUserEditedRow(${idx}, 'person_name', this.value)"></td>
         <td><input type="text" class="${autoClass}" value="${item.unit || ''}" placeholder="Phòng ban..." onchange="onUserEditedRow(${idx}, 'unit', this.value)"></td>
@@ -263,7 +300,6 @@
   function onUserEditedRow(idx, field, val) {
     if (!digestItems[idx]) return;
     digestItems[idx][field] = val;
-    // Auto learn and save into dictionary!
     const item = digestItems[idx];
     saveAutofillEntry(item.zalo_name, item.person_name, item.unit, item.target_role);
   }
@@ -294,45 +330,30 @@
     document.getElementById('totalAutofill').innerText = mapCount + ' người';
   }
 
-  function renderDigest(data) {
-    if (!data || data.kind !== 'zalo_daily_digest') return;
-    const alertEl = document.getElementById('statusAlert');
-    const day = data.date || document.getElementById('selectDate').value;
-    const items = Array.isArray(data.items) ? data.items : [];
-    loadDigest(items.map(item => ({ ...item, selected: true })));
-    const tbl = document.getElementById('tableBody');
-    if (tbl) tbl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    alertEl.className = items.length ? 'alert alert-success' : 'alert';
-    alertEl.style.display = 'block';
-    alertEl.textContent = data.error ? `Không thể quét ngày ${day}: ${data.error}`
-      : items.length ? `✅ Đã tìm thấy ${items.length} tin nhắn hỗ trợ thật ngày ${day}. Thông tin Họ tên & Phòng ban đã được Autofill sẵn!`
-      : `Ngày ${day}: Chưa thu được tin hỗ trợ HIU thật nào mới.`;
-  }
-
-  async function scanZaloToday() {
-    const day = document.getElementById('selectDate').value;
+  async function scanZaloDateRange() {
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
     const alertEl = document.getElementById('statusAlert');
     alertEl.className = 'alert';
     alertEl.style.display = 'block';
-    alertEl.textContent = `Đang tải các đầu việc hỗ trợ ngày ${day} từ Cloud Database...`;
+    alertEl.textContent = `Đang tải các đầu việc từ ngày ${start} đến ${end}...`;
 
     try {
-      // 1. Fetch items directly from Supabase for this date
+      // Query Supabase for date range
       const { data, error } = await desklogClient
         .from('work_items')
         .select('*')
-        .eq('work_date', day)
+        .gte('work_date', start)
+        .lte('work_date', end)
+        .order('work_date', { ascending: false })
         .order('created_at', { ascending: false });
 
-      if (error) {
-        throw new Error(error.message);
-      }
+      if (error) throw new Error(error.message);
 
       if (data && data.length > 0) {
-        // Map to digest items
         const items = data.map(d => ({
           db_id: d.id,
-          selected: d.status === 'Chờ duyệt',
+          selected: d.status === 'Chờ duyệt' || d.status === 'Mới tiếp nhận',
           work_date: d.work_date,
           zalo_name: d.person_name,
           person_name: d.person_name,
@@ -348,44 +369,17 @@
         loadDigest(items);
         alertEl.className = 'alert alert-success';
         const pendingCount = items.filter(i => i.selected).length;
-        alertEl.innerHTML = `✅ <strong>Ngày ${day}:</strong> Tìm thấy <strong>${items.length} công việc</strong> trên hệ thống (${pendingCount ? pendingCount + ' việc mới chờ duyệt' : 'tất cả đã duyệt'}).`;
+        alertEl.innerHTML = `✅ <strong>Khoảng ngày ${start} ➔ ${end}:</strong> Tìm thấy <strong>${items.length} công việc</strong> (${pendingCount ? pendingCount + ' việc chờ duyệt' : 'tất cả đã duyệt'}).`;
       } else {
         loadDigest([]);
         alertEl.className = 'alert';
-        alertEl.innerHTML = `ℹ️ <strong>Ngày ${day}:</strong> Chưa có công việc hoặc yêu cầu hỗ trợ nào được ghi nhận.`;
-      }
-
-      // 2. Also notify AICoworker if running inside Electron app
-      if (window.aicw && typeof aicw.send === 'function') {
-        aicw.send(`Quét tin Zalo HIU thật ngày ${day} cho Thư ký; gửi kết quả vào bảng duyệt`, { action: 'scan_zalo_daily', date: day });
+        alertEl.innerHTML = `ℹ️ <strong>Khoảng ngày ${start} ➔ ${end}:</strong> Chưa có công việc hoặc yêu cầu hỗ trợ nào.`;
       }
     } catch (err) {
       alertEl.className = 'alert alert-error';
-      alertEl.textContent = `Lỗi tải dữ liệu ngày ${day}: ${err.message}.`;
+      alertEl.textContent = `Lỗi tải dữ liệu: ${err.message}.`;
     }
   }
-
-  function setupAicwBridge() {
-    if (window.aicw) {
-      if (aicw.data) {
-        renderDigest(aicw.data);
-      }
-      aicw.on('data', function(d) {
-        renderDigest(d);
-      });
-      aicw.on('init', function(info) {
-        if (info && info.data) renderDigest(info.data);
-      });
-    }
-  }
-
-  // Run bridge setup
-  setupAicwBridge();
-  // If window.aicw is injected slightly after script execution
-  window.addEventListener('DOMContentLoaded', setupAicwBridge);
-  setTimeout(setupAicwBridge, 300);
-  setTimeout(setupAicwBridge, 1000);
-
 
   async function approveAndSaveToDesklog() {
     const approved = digestItems.filter(i => i.selected);
@@ -420,11 +414,9 @@
         };
 
         if (item.db_id) {
-          // Update existing item from 'Chờ duyệt' to official status
           const { error } = await desklogClient.from('work_items').update(payload).eq('id', item.db_id);
           if (error) throw error;
         } else {
-          // Insert new
           const { error } = await desklogClient.from('work_items').insert(payload);
           if (error) throw error;
         }
@@ -434,10 +426,9 @@
 
       const alertEl = document.getElementById('statusAlert');
       alertEl.className = 'alert alert-success';
-      alertEl.innerHTML = `🎉 <strong>Thành công:</strong> Đã duyệt và lưu chính thức <strong>${savedCount} đầu việc</strong> vào Desklog Supabase!`;
+      alertEl.innerHTML = `🎉 <strong>Thành công:</strong> Đã duyệt và cập nhật chính thức <strong>${savedCount} đầu việc</strong> vào Desklog Supabase!`;
 
-      // Reload
-      scanZaloToday();
+      scanZaloDateRange();
     } catch (err) {
       alert("Lỗi khi lưu Supabase: " + err.message);
     } finally {
@@ -446,7 +437,8 @@
     }
   }
 
-  loadDigest([]);
+  // Initial load date range
+  scanZaloDateRange();
 </script>
 </body>
 </html>

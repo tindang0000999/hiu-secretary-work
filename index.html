@@ -314,17 +314,54 @@
     const alertEl = document.getElementById('statusAlert');
     alertEl.className = 'alert';
     alertEl.style.display = 'block';
-    alertEl.textContent = `Đang nhờ trợ lý trên máy tổng hợp tin Zalo ngày ${day}...`;
-    if (!window.aicw || typeof aicw.send !== 'function') {
-      alertEl.className = 'alert alert-error';
-      alertEl.textContent = 'Cần mở bảng trong ứng dụng AICoworker để gửi yêu cầu.';
-      return;
-    }
+    alertEl.textContent = `Đang tải các đầu việc hỗ trợ ngày ${day} từ Cloud Database...`;
+
     try {
-      await aicw.send(`Quét tin Zalo HIU thật ngày ${day} cho Thư ký; gửi kết quả vào bảng duyệt`, { action: 'scan_zalo_daily', date: day });
+      // 1. Fetch items directly from Supabase for this date
+      const { data, error } = await desklogClient
+        .from('work_items')
+        .select('*')
+        .eq('work_date', day)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data && data.length > 0) {
+        // Map to digest items
+        const items = data.map(d => ({
+          db_id: d.id,
+          selected: d.status === 'Chờ duyệt',
+          work_date: d.work_date,
+          zalo_name: d.person_name,
+          person_name: d.person_name,
+          unit: d.unit,
+          target_role: d.target_role || 'Nhân viên',
+          site: d.site,
+          category: d.category,
+          title: d.title,
+          notes: d.notes,
+          status: d.status === 'Chờ duyệt' ? 'Hoàn thành' : d.status
+        }));
+
+        loadDigest(items);
+        alertEl.className = 'alert alert-success';
+        const pendingCount = items.filter(i => i.selected).length;
+        alertEl.innerHTML = `✅ <strong>Ngày ${day}:</strong> Tìm thấy <strong>${items.length} công việc</strong> trên hệ thống (${pendingCount ? pendingCount + ' việc mới chờ duyệt' : 'tất cả đã duyệt'}).`;
+      } else {
+        loadDigest([]);
+        alertEl.className = 'alert';
+        alertEl.innerHTML = `ℹ️ <strong>Ngày ${day}:</strong> Chưa có công việc hoặc yêu cầu hỗ trợ nào được ghi nhận.`;
+      }
+
+      // 2. Also notify AICoworker if running inside Electron app
+      if (window.aicw && typeof aicw.send === 'function') {
+        aicw.send(`Quét tin Zalo HIU thật ngày ${day} cho Thư ký; gửi kết quả vào bảng duyệt`, { action: 'scan_zalo_daily', date: day });
+      }
     } catch (err) {
       alertEl.className = 'alert alert-error';
-      alertEl.textContent = `Không gửi được yêu cầu quét: ${err.message}`;
+      alertEl.textContent = `Lỗi tải dữ liệu ngày ${day}: ${err.message}.`;
     }
   }
 
@@ -367,34 +404,40 @@
     btn.innerText = `Đang lưu ${approved.length} việc...`;
 
     try {
-      const records = approved.map(item => ({
-        owner_id: desklogUser.id,
-        work_date: item.work_date,
-        person_name: item.person_name,
-        target_role: item.target_role,
-        site: item.site,
-        unit: item.unit,
-        category: item.category,
-        title: item.title,
-        notes: item.notes,
-        status: item.status
-      }));
+      let savedCount = 0;
+      for (const item of approved) {
+        const payload = {
+          owner_id: desklogUser.id,
+          work_date: item.work_date,
+          person_name: item.person_name,
+          target_role: item.target_role,
+          site: item.site,
+          unit: item.unit,
+          category: item.category,
+          title: item.title,
+          notes: item.notes,
+          status: item.status || 'Hoàn thành'
+        };
 
-      const { data: saved, error: saveError } = await desklogClient.from('work_items').insert(records).select('id');
-      if (saveError) throw saveError;
+        if (item.db_id) {
+          // Update existing item from 'Chờ duyệt' to official status
+          const { error } = await desklogClient.from('work_items').update(payload).eq('id', item.db_id);
+          if (error) throw error;
+        } else {
+          // Insert new
+          const { error } = await desklogClient.from('work_items').insert(payload);
+          if (error) throw error;
+        }
+        savedCount++;
+        saveAutofillEntry(item.zalo_name, item.person_name, item.unit, item.target_role);
+      }
 
       const alertEl = document.getElementById('statusAlert');
       alertEl.className = 'alert alert-success';
-      alertEl.innerText = `🎉 Đã duyệt và lưu thành công ${approved.length} đầu việc vào Desklog Supabase!`;
-      
-      // Auto save all approved mappings into directory
-      approved.forEach(item => {
-        saveAutofillEntry(item.zalo_name, item.person_name, item.unit, item.target_role);
-      });
+      alertEl.innerHTML = `🎉 <strong>Thành công:</strong> Đã duyệt và lưu chính thức <strong>${savedCount} đầu việc</strong> vào Desklog Supabase!`;
 
-      digestItems = digestItems.filter(i => !i.selected);
-      renderTable();
-      updateSummary();
+      // Reload
+      scanZaloToday();
     } catch (err) {
       alert("Lỗi khi lưu Supabase: " + err.message);
     } finally {

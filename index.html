@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <title>Thư Ký AI • Bảng Duyệt Nhật Ký Công Việc Zalo (Nhiều Ngày)</title>
+  <title>Thư Ký AI • Bảng Duyệt Nhật Ký Công Việc Zalo</title>
   <style>
     :root {
       --primary: #168078;
@@ -13,14 +13,29 @@
       --text: #172f38;
       --muted: #667e83;
       --accent: #2563eb;
+      --bad: #ef4444;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background: var(--bg); color: var(--text); padding: 16px; }
     .container { max-width: 1240px; margin: 0 auto; }
+
+    /* Auth Overlay (Màn hình khóa đăng nhập bắt buộc) */
+    .auth-overlay { position: fixed; inset: 0; background: #0f172a; display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 16px; }
+    .auth-card { background: var(--card); border-radius: 16px; width: 100%; max-width: 400px; padding: 32px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid var(--border); }
+    .auth-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; text-align: center; color: var(--text); }
+    .auth-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 20px; text-align: center; line-height: 1.4; }
+    .auth-field { margin-bottom: 14px; }
+    .auth-field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; color: var(--muted); }
+    .auth-input { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px; outline: none; }
+    .auth-input:focus { border-color: var(--accent); }
+    .auth-btn { width: 100%; padding: 12px; border-radius: 8px; background: var(--accent); color: white; border: none; font-weight: 600; font-size: 14px; cursor: pointer; transition: background 0.2s; }
+    .auth-btn:hover { background: #1d4ed8; }
+    .auth-alert { padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; display: none; line-height: 1.4; }
+    .auth-alert.error { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; display: block; }
     
-    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .top-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
     .title-area h1 { font-size: 20px; font-weight: 800; color: #172c35; }
-    .title-area p { color: var(--muted); font-size: 13px; }
+    .title-area p { color: var(--muted); font-size: 13px; margin-top: 2px; }
     
     .action-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .date-box { display: flex; align-items: center; gap: 6px; background: #fff; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; font-weight: 600; color: var(--muted); }
@@ -31,6 +46,7 @@
     .btn-secondary { background: #eef4f1; color: #234d4b; }
     .btn-save { background: #2563eb; }
     .btn-save:hover { background: #1d4ed8; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
     
     .quick-chip { font-size: 12px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: #fff; cursor: pointer; color: var(--text); font-weight: 500; }
     .quick-chip:hover { border-color: var(--primary); color: var(--primary); }
@@ -49,6 +65,7 @@
     
     .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
     .badge-date { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-weight: 600; }
+    .badge-user { background: #eff6ff; color: #2563eb; }
     
     .alert { padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; display: none; line-height: 1.4; }
     .alert-success { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; display: block; }
@@ -64,35 +81,47 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
-<div class="container">
-  <!-- Authentication Card -->
-  <div class="card" style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-    <div style="flex:1; min-width:200px;">
-      <label style="font-size:11px; font-weight:700; display:block; margin-bottom:4px; text-transform:uppercase; color:var(--muted);">Tài khoản Desklog</label>
-      <input id="loginEmail" type="email" value="dangtin107@gmail.com">
-    </div>
-    <div style="flex:1; min-width:180px;">
-      <label style="font-size:11px; font-weight:700; display:block; margin-bottom:4px; text-transform:uppercase; color:var(--muted);">Mật khẩu</label>
-      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••">
-    </div>
-    <div>
-      <button class="btn btn-secondary" onclick="loginDesklog()">🔑 Đăng nhập để lưu</button>
-    </div>
-    <div style="width:100%; font-size:12px; color:var(--muted);" id="authStatus">Chưa đăng nhập — chỉ xem được bản nháp.</div>
-  </div>
+<!-- Auth Overlay: Màn hình khóa đăng nhập bắt buộc -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-card">
+    <div style="font-size: 38px; text-align: center; margin-bottom: 8px;">🔐</div>
+    <h2 class="auth-title">Thư Ký AI • Xác Thực</h2>
+    <p class="auth-subtitle">Hệ thống tổng hợp nhật ký công việc Zalo<br>Bảo mật bằng <strong>Supabase Cloud</strong></p>
 
-  <!-- Top Bar: Multiple Dates Selection -->
+    <div style="text-align: center; margin-bottom: 18px; font-weight: 700; color: #2563eb; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; background: #eff6ff; padding: 8px; border-radius: 8px;">
+      🔒 Hệ Thống Nội Bộ • Chỉ Đăng Nhập
+    </div>
+
+    <div class="auth-alert" id="authAlert"></div>
+
+    <div class="auth-field">
+      <label>Email tài khoản</label>
+      <input type="email" id="authEmail" class="auth-input" placeholder="dangtin107@gmail.com" value="dangtin107@gmail.com">
+    </div>
+
+    <div class="auth-field">
+      <label>Mật khẩu</label>
+      <input type="password" id="authPassword" class="auth-input" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleAuthSubmit()">
+    </div>
+
+    <button class="auth-btn" id="authSubmitBtn" onclick="handleAuthSubmit()">Vào Bảng Duyệt Thư Ký</button>
+  </div>
+</div>
+
+<!-- Main Application Container -->
+<div class="container" id="mainApp" style="display: none;">
+  <!-- Top Bar -->
   <div class="top-bar">
     <div class="title-area">
-      <h1>📑 Thư Ký AI • Bảng Duyệt Nhật Ký Công Việc (Nhiều Ngày)</h1>
-      <p>Tổng hợp 2-3 ngày hoặc cả tuần một lần: Chọn khoảng ngày và bấm Quét để duyệt hàng loạt vào Desklog!</p>
+      <h1>📑 Thư Ký AI • Bảng Duyệt Nhật Ký Công Việc (Autofill)</h1>
+      <p>Đang đăng nhập: <strong id="currentUserEmail" style="color: var(--accent);">dangtin107@gmail.com</strong> • Dữ liệu Cloud Supabase</p>
     </div>
     <div class="action-bar">
       <!-- Quick Range Shortcuts -->
       <div style="display:flex; gap:6px; margin-right:4px;">
         <button class="quick-chip" onclick="setQuickRange(1)">Hôm nay</button>
-        <button class="quick-chip" onclick="setQuickRange(3)">3 Ngày gần đây</button>
-        <button class="quick-chip" onclick="setQuickRange(7)">7 Ngày (1 Tuần)</button>
+        <button class="quick-chip" onclick="setQuickRange(3)">3 Ngày</button>
+        <button class="quick-chip" onclick="setQuickRange(7)">7 Ngày</button>
       </div>
 
       <div class="date-box">
@@ -104,6 +133,7 @@
 
       <button class="btn btn-secondary" onclick="scanZaloDateRange()">⚡ Quét khoảng ngày này</button>
       <button class="btn btn-save" id="btnApproveAll" onclick="approveAndSaveToDesklog()">🚀 Duyệt &amp; Lưu Vào Desklog</button>
+      <button class="btn btn-outline" style="color: var(--bad); border-color: #fca5a5;" onclick="handleSignOut()">🚪 Đăng xuất</button>
     </div>
   </div>
 
@@ -184,29 +214,58 @@
     } catch(e) {}
   }
 
-  async function loginDesklog() {
-    const email = document.getElementById('loginEmail').value.trim();
-    const password = document.getElementById('loginPassword').value;
-    const { data, error } = await desklogClient.auth.signInWithPassword({ email, password });
-    if (error) {
-      document.getElementById('authStatus').innerText = 'Đăng nhập lỗi: ' + error.message;
-      return;
-    }
-    desklogUser = data.user;
-    document.getElementById('loginPassword').value = '';
-    document.getElementById('authStatus').innerHTML = '<span style="color:#15803d; font-weight:700;">✅ Đã đăng nhập: ' + desklogUser.email + '</span>';
+  function showAuthAlert(msg, type) {
+    const el = document.getElementById("authAlert");
+    el.className = "auth-alert " + type;
+    el.innerText = msg;
   }
 
-  desklogClient.auth.getSession().then(({ data }) => {
-    desklogUser = data.session?.user || null;
-    if (desklogUser) {
-      document.getElementById('authStatus').innerHTML = '<span style="color:#15803d; font-weight:700;">✅ Đã đăng nhập: ' + desklogUser.email + '</span>';
+  async function checkAuth() {
+    const { data: { session } } = await desklogClient.auth.getSession();
+    if (session && session.user) {
+      desklogUser = session.user;
+      document.getElementById("authOverlay").style.display = "none";
+      document.getElementById("mainApp").style.display = "block";
+      document.getElementById("currentUserEmail").innerText = desklogUser.email;
+      scanZaloDateRange();
+    } else {
+      document.getElementById("authOverlay").style.display = "flex";
+      document.getElementById("mainApp").style.display = "none";
     }
-  });
+  }
+
+  async function handleAuthSubmit() {
+    const email = document.getElementById("authEmail").value.trim();
+    const password = document.getElementById("authPassword").value.trim();
+
+    if (!email || !password) {
+      showAuthAlert("Vui lòng nhập mật khẩu.", "error");
+      return;
+    }
+
+    document.getElementById("authSubmitBtn").innerText = "Đang xác thực...";
+    const { data, error } = await desklogClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      showAuthAlert("Mật khẩu không chính xác. Hệ thống nội bộ chỉ dành cho cán bộ được cấp quyền.", "error");
+      document.getElementById("authSubmitBtn").innerText = "Vào Bảng Duyệt Thư Ký";
+    } else {
+      desklogUser = data.user;
+      document.getElementById("authOverlay").style.display = "none";
+      document.getElementById("mainApp").style.display = "block";
+      document.getElementById("currentUserEmail").innerText = desklogUser.email;
+      scanZaloDateRange();
+    }
+  }
+
+  async function handleSignOut() {
+    await desklogClient.auth.signOut();
+    desklogUser = null;
+    document.getElementById("authOverlay").style.display = "flex";
+    document.getElementById("mainApp").style.display = "none";
+  }
 
   let digestItems = [];
 
-  // Helper date formatting
   function formatDate(d) {
     return d.toISOString().split('T')[0];
   }
@@ -220,7 +279,6 @@
     scanZaloDateRange();
   }
 
-  // Init default: 3 days range (today and 2 days prior)
   const today = new Date();
   const threeDaysAgo = new Date();
   threeDaysAgo.setDate(today.getDate() - 2);
@@ -339,7 +397,6 @@
     alertEl.textContent = `Đang tải các đầu việc từ ngày ${start} đến ${end}...`;
 
     try {
-      // Query Supabase for date range
       const { data, error } = await desklogClient
         .from('work_items')
         .select('*')
@@ -369,7 +426,7 @@
         loadDigest(items);
         alertEl.className = 'alert alert-success';
         const pendingCount = items.filter(i => i.selected).length;
-        alertEl.innerHTML = `✅ <strong>Khoảng ngày ${start} ➔ ${end}:</strong> Tìm thấy <strong>${items.length} công việc</strong> (${pendingCount ? pendingCount + ' việc chờ duyệt' : 'tất cả đã duyệt'}).`;
+        alertEl.innerHTML = `✅ <strong>Khoảng ngày ${start} ➔ ${end}:</strong> Tìm thấy <strong>${items.length} công việc</strong> (${pendingCount ? pendingCount + ' việc mới chờ duyệt' : 'tất cả đã duyệt'}).`;
       } else {
         loadDigest([]);
         alertEl.className = 'alert';
@@ -389,7 +446,8 @@
     }
 
     if (!desklogUser) {
-      alert("Anh vui lòng nhập mật khẩu và bấm '🔑 Đăng nhập để lưu' ở khung phía trên trước khi lưu nhé!");
+      alert("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+      handleSignOut();
       return;
     }
 
@@ -437,8 +495,8 @@
     }
   }
 
-  // Initial load date range
-  scanZaloDateRange();
+  // Khởi động kiểm tra xác thực bắt buộc
+  checkAuth();
 </script>
 </body>
 </html>

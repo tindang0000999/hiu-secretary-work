@@ -127,10 +127,11 @@
     </div>
     <div class="action-bar">
       <!-- Quick Range Shortcuts -->
-      <div style="display:flex; gap:6px; margin-right:4px;">
+      <div style="display:flex; gap:6px; margin-right:4px; flex-wrap:wrap;">
         <button class="quick-chip" onclick="setQuickRange(1)">Hôm nay</button>
         <button class="quick-chip" onclick="setQuickRange(3)">3 Ngày</button>
         <button class="quick-chip" onclick="setQuickRange(7)">7 Ngày</button>
+        <button class="quick-chip" onclick="setQuickRange(14)">14 Ngày (2 Tuần)</button>
       </div>
 
       <div class="date-box">
@@ -330,9 +331,9 @@
   }
 
   const today = new Date();
-  const threeDaysAgo = new Date();
-  threeDaysAgo.setDate(today.getDate() - 2);
-  document.getElementById('startDate').value = formatDate(threeDaysAgo);
+  const tenDaysAgo = new Date();
+  tenDaysAgo.setDate(today.getDate() - 10);
+  document.getElementById('startDate').value = formatDate(tenDaysAgo);
   document.getElementById('endDate').value = formatDate(today);
 
   function loadDigest(items) {

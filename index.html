@@ -607,9 +607,22 @@
   }
 
   async function approveAndSaveToDesklog() {
-    const approved = digestItems.filter(i => i.selected);
-    if (approved.length === 0) {
-      alert("Vui lòng tick chọn ít nhất 1 đầu việc để lưu.");
+    const selectedList = digestItems.filter(i => i.selected);
+    if (selectedList.length === 0) {
+      alert("Vui lòng tick chọn ít nhất 1 đầu việc để duyệt lưu.");
+      return;
+    }
+
+    // Quy tắc cốt lõi: CHỈ LƯU NHỮNG VIỆC CÓ TRẠNG THÁI 'Hoàn thành'
+    const completedList = selectedList.filter(i => (i.status || '').trim() === 'Hoàn thành');
+    const pendingCount = selectedList.length - completedList.length;
+
+    if (completedList.length === 0) {
+      alert(`⚠️ Không có đầu việc nào được lưu!
+
+Lý do: Trong ${selectedList.length} việc được tick chọn, không có việc nào ở trạng thái 'Hoàn thành'.
+
+👉 Anh vui lòng chuyển cột Trạng thái sang 'Hoàn thành' cho những việc đã xong để lưu vào Desklog nhé!`);
       return;
     }
 
@@ -621,11 +634,11 @@
 
     const btn = document.getElementById('btnApproveAll');
     btn.disabled = true;
-    btn.innerText = `Đang lưu ${approved.length} việc...`;
+    btn.innerText = `Đang lưu ${completedList.length} việc hoàn thành...`;
 
     try {
       let savedCount = 0;
-      for (const item of approved) {
+      for (const item of completedList) {
         const payload = {
           owner_id: desklogUser.id,
           work_date: item.work_date,
@@ -636,7 +649,7 @@
           category: item.category,
           title: item.title,
           notes: item.notes,
-          status: item.status || 'Hoàn thành'
+          status: 'Hoàn thành'
         };
 
         if (item.db_id) {
@@ -652,7 +665,11 @@
 
       const alertEl = document.getElementById('statusAlert');
       alertEl.className = 'alert alert-success';
-      alertEl.innerHTML = `🎉 <strong>Thành công:</strong> Đã duyệt và cập nhật chính thức <strong>${savedCount} đầu việc</strong> vào Desklog Supabase!`;
+      let msg = `🎉 <strong>Thành công:</strong> Đã lưu chính thức <strong>${savedCount} việc Hoàn thành</strong> vào Desklog!`;
+      if (pendingCount > 0) {
+        msg += `<br>ℹ️ Đã giữ lại <strong>${pendingCount} việc chưa xong</strong> (Đang xử lý / Mới tiếp nhận) để tiếp tục theo dõi.`;
+      }
+      alertEl.innerHTML = msg;
 
       scanZaloDateRange();
     } catch (err) {

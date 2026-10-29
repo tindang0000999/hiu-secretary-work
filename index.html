@@ -142,6 +142,7 @@
       </div>
 
       <button class="btn btn-secondary" onclick="scanZaloDateRange()">⚡ Quét khoảng ngày này</button>
+      <button class="btn" style="background: #0284c7;" id="btnBatchTransfer" onclick="openBatchTransferDraft()">📋 Soạn chuyển các mục đã chọn</button>
       <button class="btn btn-save" id="btnApproveAll" onclick="approveAndSaveToDesklog()">🚀 Duyệt &amp; Lưu Vào Desklog</button>
       <button class="btn btn-outline" style="color: var(--bad); border-color: #fca5a5;" onclick="handleSignOut()">🚪 Đăng xuất</button>
     </div>
@@ -189,7 +190,7 @@
             <th style="width: 110px;">Đối tượng</th>
             <th style="width: 80px;">Cơ sở</th>
             <th style="width: 95px;">Loại</th>
-            <th>Tiêu đề công việc</th>
+            <th style="min-width: 280px;">Tiêu đề công việc (Mã lỗi)</th>
             <th style="width: 110px;">Trạng thái</th>
             <th style="width: 140px;">Chuyển xử lý</th>
           </tr>
@@ -202,24 +203,34 @@
   </div>
 </div>
 
-<!-- Hotline transfer draft modal: preview and copy only; never auto-send -->
+<!-- Hotline transfer draft modal: simplified format (email - type), batch copy support -->
 <div class="transfer-modal" id="transferModal" role="dialog" aria-modal="true" aria-labelledby="transferTitle">
   <div class="transfer-panel">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px">
-      <h2 id="transferTitle" style="font-size:18px">📝 Soạn nháp chuyển yêu cầu Hotline</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px">
+      <h2 id="transferTitle" style="font-size:18px">📝 Soạn chuyển yêu cầu Sinh viên Hotline</h2>
+      <button class="btn btn-secondary" onclick="closeTransferDraft()">✕ Đóng</button>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Định dạng ngắn gọn trực diện: <code>email student - loại lỗi</code> để copy gửi nhanh vào nhóm/người xử lý.</p>
+    
+    <div style="margin-bottom: 12px;">
+      <label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;text-transform:uppercase;color:var(--muted);">Gán nhanh loại yêu cầu (Bấm để đổi):</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="quick-chip" style="background:#eff6ff;color:#1d4ed8;font-weight:700;" onclick="applyQuickAction('remove auth')">⚡ 1. remove auth</button>
+        <button class="quick-chip" style="background:#f0fdf4;color:#15803d;font-weight:700;" onclick="applyQuickAction('license office')">📄 2. license office</button>
+        <button class="quick-chip" onclick="applyQuickAction('reset password')">🔑 reset password</button>
+        <button class="quick-chip" onclick="applyQuickAction('kich hoat email')">✉️ kích hoạt email</button>
+      </div>
+    </div>
+
+    <label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;text-transform:uppercase;color:var(--muted);">Nội dung xem trước (Copy để gửi Zalo):</label>
+    <textarea id="transferMessage" style="width:100%;min-height:220px;max-height:55vh;overflow:auto;padding:12px;border:1px solid var(--border);border-radius:8px;font-family:Consolas,monospace,sans-serif;font-size:14px;line-height:1.6;"></textarea>
+    
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+      <button class="btn" style="background:#168078;" onclick="copyTransferDraft()">📋 Sao chép danh sách</button>
+      <button class="btn btn-outline" onclick="openZaloForManualSend()">↗ Mở Zalo Web</button>
       <button class="btn btn-secondary" onclick="closeTransferDraft()">Đóng</button>
     </div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Chỉ soạn và xem trước. Không có tin nào được gửi cho tới khi anh tự gửi trong Zalo.</p>
-    <label style="display:block;font-size:12px;font-weight:700;margin:8px 0 5px">Người / nhóm nhận xử lý</label>
-    <input type="text" id="transferRecipient" placeholder="Ví dụ: Phòng CNTT / người phụ trách..." oninput="refreshTransferRecipient()">
-    <label style="display:block;font-size:12px;font-weight:700;margin:12px 0 5px">Nội dung nháp xem trước (có thể sửa)</label>
-    <textarea id="transferMessage" rows="8"></textarea>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-      <button class="btn btn-secondary" onclick="copyTransferDraft()">📋 Sao chép nháp</button>
-      <button class="btn btn-outline" onclick="openZaloForManualSend()">↗ Mở Zalo Web</button>
-      <button class="btn" onclick="closeTransferDraft()">Xong</button>
-    </div>
-    <div id="transferHint" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
+    <div id="transferHint" style="margin-top:10px;font-size:13px;font-weight:600;color:var(--primary);"></div>
   </div>
 </div>
 
@@ -309,6 +320,10 @@
     activeTab = tab;
     document.getElementById('tabWork').classList.toggle('active', tab === 'work');
     document.getElementById('tabHotline').classList.toggle('active', tab === 'hotline');
+    const batchBtn = document.getElementById('btnBatchTransfer');
+    if (batchBtn) {
+      batchBtn.style.display = tab === 'hotline' ? 'inline-flex' : 'none';
+    }
     renderTable();
     updateSummary();
   }

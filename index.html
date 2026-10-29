@@ -458,39 +458,78 @@
     document.getElementById('totalAutofill').innerText = mapCount + ' người';
   }
 
+  function extractStudentEmail(item) {
+    if (!item) return 'sinhvien@student.hiu.vn';
+    const text = ((item.title || '') + ' ' + (item.notes || '') + ' ' + (item.person_name || '')).toLowerCase();
+    const match = text.match(/[a-z0-9._%+-]+@student\.hiu\.vn/i);
+    if (match) return match[0].toLowerCase();
+    return item.person_name || 'sinhvien@student.hiu.vn';
+  }
+
+  function detectDefaultAction(item) {
+    if (!item) return 'remove auth';
+    const text = ((item.title || '') + ' ' + (item.notes || '')).toLowerCase();
+    if (text.includes('license') || text.includes('bản quyền') || text.includes('office 365')) return 'license office';
+    if (text.includes('auth') || text.includes('xác thực') || text.includes('authenticator') || text.includes('mã')) return 'remove auth';
+    if (text.includes('reset') || text.includes('mật khẩu') || text.includes('pass')) return 'reset password';
+    return 'remove auth';
+  }
+
   function openTransferDraft(idx) {
     const item = digestItems[idx];
     if (!item) return;
-    transferDraftIndex = idx;
-    const recipient = document.getElementById('transferRecipient');
-    recipient.value = item.assignee_name || '';
-    const preview = document.getElementById('transferMessage');
-    preview.value = `Kính gửi ${recipient.value || '[người/nhóm nhận xử lý]'},
 
-Nhờ anh/chị hỗ trợ xử lý yêu cầu từ ${item.person_name || item.zalo_name || 'sinh viên'} (${item.unit || 'chưa rõ đơn vị'}, cơ sở ${item.site || 'chưa rõ'}):
+    const email = extractStudentEmail(item);
+    const action = detectDefaultAction(item);
 
-${item.title || ''}
-
-Thông tin trao đổi gốc: ${item.notes || '(không có ghi chú)'}
-
-Vui lòng cập nhật kết quả xử lý giúp em. Cảm ơn anh/chị.`;
-    document.getElementById('transferHint').textContent = 'Bản nháp chưa gửi. Sao chép nội dung rồi tự gửi trong Zalo; nút này không tự gửi.';
-    document.getElementById('transferModal').classList.add('open');
+    document.getElementById('transferTitle').innerText = '📝 Soạn chuyển: ' + (item.person_name || email);
+    document.getElementById('transferMessage').value = `${email} - ${action}`;
+    document.getElementById('transferHint').textContent = '💡 Bạn có thể bấm nút chọn nhanh ở trên hoặc gõ thêm nội dung.';
+    
+    const modal = document.getElementById('transferModal');
+    modal.style.display = 'flex';
     autosizeTransferText();
   }
 
-  function refreshTransferRecipient() {
-    const recipient = document.getElementById('transferRecipient').value.trim() || '[người/nhóm nhận xử lý]';
+  function openBatchTransferDraft() {
+    const selectedItems = digestItems.filter(i => isHotlineItem(i) && i.selected);
+    if (selectedItems.length === 0) {
+      alert("Vui lòng tick chọn ít nhất 1 sinh viên trong tab Hotline để soạn chuyển.");
+      return;
+    }
+
+    document.getElementById('transferTitle').innerText = `📝 Soạn chuyển danh sách (${selectedItems.length} sinh viên)`;
+
+    const lines = selectedItems.map(item => {
+      const email = extractStudentEmail(item);
+      const action = detectDefaultAction(item);
+      return `${email} - ${action}`;
+    });
+
+    document.getElementById('transferMessage').value = lines.join('\n');
+    document.getElementById('transferHint').textContent = `✅ Đã gộp ${selectedItems.length} sinh viên. Bấm 'Sao chép danh sách' để copy 1 lần gửi vào Zalo.`;
+    
+    const modal = document.getElementById('transferModal');
+    modal.style.display = 'flex';
+    autosizeTransferText();
+  }
+
+  function applyQuickAction(actionName) {
     const ta = document.getElementById('transferMessage');
-    const lines = ta.value.split('\n');
-    lines[0] = `Kính gửi ${recipient},`;
-    ta.value = lines.join('\n');
+    const lines = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
+    const updatedLines = lines.map(line => {
+      const parts = line.split('-');
+      const emailPart = parts[0].trim();
+      return `${emailPart} - ${actionName}`;
+    });
+    ta.value = updatedLines.join('\n');
+    document.getElementById('transferHint').textContent = `Đã đổi tất cả thành '${actionName}'.`;
     autosizeTransferText();
   }
 
   function closeTransferDraft() {
-    document.getElementById('transferModal').classList.remove('open');
-    transferDraftIndex = null;
+    const modal = document.getElementById('transferModal');
+    modal.style.display = 'none';
   }
 
   function autosizeTransferText() {

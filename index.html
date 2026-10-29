@@ -527,6 +527,14 @@
     autosizeTransferText();
   }
 
+  function applyStudentReplyTemplate() {
+    const ta = document.getElementById('transferMessage');
+    const replyMsg = "Bạn có thể vào tài khoản xác thực được rồi. Xem video xác thực nhé. Bạn không cần xác thực thêm phương thức số điện thoại. https://youtu.be/UITCdK_jOXM";
+    ta.value = replyMsg;
+    document.getElementById('transferHint').textContent = "✅ Đã nạp mẫu tin nhắn phản hồi sinh viên kèm link video YouTube! Bấm 'Sao chép' và mở Zalo gửi cho bạn nhé.";
+    autosizeTransferText();
+  }
+
   function closeTransferDraft() {
     const modal = document.getElementById('transferModal');
     modal.style.display = 'none';

@@ -417,6 +417,7 @@
             <option value="Đang xử lý" ${item.status === 'Đang xử lý' ? 'selected' : ''}>Đang xử lý</option>
             <option value="Mới tiếp nhận" ${item.status === 'Mới tiếp nhận' ? 'selected' : ''}>Mới tiếp nhận</option>
           </select>
+          ${item.notes && item.notes.includes('ĐÃ PHẢN HỒI') ? '<div style="font-size:10px;font-weight:700;color:#15803d;margin-top:4px;">✔ Đã phản hồi</div>' : (activeTab === 'hotline' ? '<div style="font-size:10px;font-weight:600;color:#94a3b8;margin-top:4px;">Chưa gửi</div>' : '')}
         </td>
         <td>${activeTab === 'hotline' ? '<button class="transfer-button" onclick="openTransferDraft(' + idx + ')">Soạn chuyển</button>' : '<span style="color:var(--muted)">—</span>'}</td>
       </tr>
@@ -562,6 +563,66 @@
   function openZaloForManualSend() {
     window.open('https://chat.zalo.me/', '_blank', 'noopener');
     document.getElementById('transferHint').textContent = 'Zalo đã mở ở tab mới. Anh chọn đúng người nhận, dán nội dung và tự bấm gửi.';
+  }
+
+  async function triggerSendReplyDirect() {
+    const ta = document.getElementById('transferMessage');
+    const msg = (ta.value || '').trim();
+    if (!msg) {
+      alert("Vui lòng nhập nội dung tin nhắn cần gửi.");
+      return;
+    }
+
+    if (currentTargetItems.length === 0) {
+      alert("Không tìm thấy thông tin sinh viên để gửi.");
+      return;
+    }
+
+    const item = currentTargetItems[0];
+    const targetName = item.person_name || 'sinh viên';
+
+    // Xác nhận trước khi gửi
+    const confirmSend = confirm(`Bạn có chắc chắn muốn hệ thống tự động gửi tin nhắn phản hồi sau đến Zalo của ${targetName} không?
+
+Nội dung:
+"${msg.substring(0, 150)}..."`);
+    if (!confirmSend) return;
+
+    const btn = document.getElementById('btnSendReplyDirect');
+    btn.disabled = true;
+    btn.innerText = 'Đang gửi qua Zalo Hotline...';
+    document.getElementById('transferHint').textContent = '⏳ Đang kết nối gửi tin nhắn...';
+
+    try {
+      // Gọi API local collector hoặc bot để phát tin
+      const res = await fetch('http://127.0.0.1:8766/api/send-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          thread_id: item.thread_id || item.sender_id,
+          message: msg,
+          item_id: item.db_id
+        })
+      });
+
+      const resData = await res.json();
+      if (resData.ok) {
+        document.getElementById('transferHint').innerHTML = `<span style="color:#15803d;font-weight:700;">🎉 ĐÃ GỬI THÀNH CÔNG đến Zalo của ${targetName}! Trạng thái đã được cập nhật sang 'Hoàn thành'.</span>`;
+        // Cập nhật trạng thái item ngay lập tức
+        item.status = 'Hoàn thành';
+        item.notes = `✅ [ĐÃ PHẢN HỒI SV lúc ${new Date().toLocaleTimeString('vi-VN')}]: "${msg.substring(0, 100)}..."
+
+` + (item.notes || '');
+        renderTable();
+      } else {
+        document.getElementById('transferHint').innerHTML = `<span style="color:#dc2626;font-weight:700;">⚠️ Gửi thất bại: ${resData.error || 'Kiểm tra kết nối OpenZCA trên máy tính'}. Bạn có thể bấm 'Sao chép' và mở Zalo gửi thủ công nhé.</span>`;
+      }
+    } catch (err) {
+      document.getElementById('transferHint').innerHTML = `<span style="color:#dc2626;font-weight:700;">⚠️ Lỗi kết nối gửi tin: ${err.message}. Đảm bảo máy tính đang mở bộ thu Hotline (Port 8766).</span>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerText = '🚀 Tự động gửi tin nhắn cho Sinh viên';
+    }
   }
 
   async function scanZaloDateRange() {

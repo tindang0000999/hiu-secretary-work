@@ -84,11 +84,209 @@
     .sum-tile { flex: 1; min-width: 140px; background: #fff; border: 1px solid var(--border); padding: 12px; border-radius: 10px; }
     .sum-tile span { font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 700; }
     .sum-tile strong { display: block; font-size: 22px; font-weight: 800; margin-top: 4px; color: #172c35; }
+  
+    /* Hotline / Student Extra Styles */
+    .filter-card-hotline {
+      background: #f0fdfa;
+      border: 1.5px solid #ccfbf1;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .filter-header-hotline {
+      font-size: 12px;
+      font-weight: 800;
+      color: #0f766e;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .filter-grid-hotline {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      align-items: center;
+    }
+    .filter-item-hotline {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .filter-item-hotline label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #334155;
+    }
+    .filter-input-hotline, .filter-select-hotline {
+      padding: 6px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 12px;
+      background: #fff;
+      color: #0f172a;
+      outline: none;
+    }
+    .filter-input-hotline:focus, .filter-select-hotline:focus {
+      border-color: #0d9488;
+      box-shadow: 0 0 0 2px rgba(13,148,136,0.15);
+    }
+    .tag-hotline {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .tag-authenticator { background: #fee2e2; color: #b91c1c; }
+    .tag-email { background: #e0f2fe; color: #0369a1; }
+    .tag-license { background: #fef3c7; color: #b45309; }
+    .tag-portal { background: #f3e8ff; color: #7e22ce; }
+    .btn-gui-zalo {
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+      border-radius: 7px;
+      padding: 6px 9px;
+      cursor: pointer;
+      font-weight: 700;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      text-decoration: none;
+      font-size: 12px;
+    }
+    .btn-gui-zalo:hover { background: #bbf7d0; }
+    .btn-gui-zalo.sent {
+      background: #f1f5f9;
+      color: #64748b;
+      border: 1px solid #cbd5e1;
+    }
+
   </style>
 </head>
 <body>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js">
+  let currentReplyIdx = null;
+
+  function getErrorType(item) {
+    const text = ((item.title || '') + ' ' + (item.notes || '')).toLowerCase();
+    if (text.includes('auth') || text.includes('xác thực') || text.includes('authenticator') || text.includes('mã')) return 'auth';
+    if (text.includes('license') || text.includes('bản quyền') || text.includes('office 365')) return 'license';
+    if (text.includes('portal') || text.includes('đăng ký môn') || text.includes('tkb')) return 'portal';
+    if (text.includes('pass') || text.includes('mật khẩu') || text.includes('email') || text.includes('mail')) return 'email';
+    return 'auth';
+  }
+
+  function applyHotlineFilters() {
+    renderTable();
+    updateSummary();
+  }
+
+  function resetHotlineFilters() {
+    const s = document.getElementById('hotlineFilterSearch');
+    const c = document.getElementById('hotlineFilterCategory');
+    const sent = document.getElementById('hotlineFilterSent');
+    if (s) s.value = '';
+    if (c) c.value = 'all';
+    if (sent) sent.value = 'all';
+    renderTable();
+    updateSummary();
+  }
+
+  function openStudentReplyModal(idx) {
+    currentReplyIdx = idx;
+    const item = digestItems[idx];
+    if (!item) return;
+
+    const email = extractStudentEmail(item);
+    document.getElementById('replyStudentName').innerText = item.person_name || 'Sinh viên';
+    document.getElementById('replyStudentEmail').innerText = email !== (item.person_name || '') ? email : '';
+    
+    const errType = getErrorType(item);
+    const tagEl = document.getElementById('replyStudentTag');
+    if (errType === 'auth') {
+      tagEl.className = 'tag-hotline tag-authenticator';
+      tagEl.innerText = 'MS Authenticator';
+    } else if (errType === 'email') {
+      tagEl.className = 'tag-hotline tag-email';
+      tagEl.innerText = 'Email / Mật khẩu';
+    } else if (errType === 'license') {
+      tagEl.className = 'tag-hotline tag-license';
+      tagEl.innerText = 'Office 365 License';
+    } else {
+      tagEl.className = 'tag-hotline tag-portal';
+      tagEl.innerText = 'Portal SV';
+    }
+
+    selectReplyTemplate(errType);
+    document.getElementById('studentReplyModal').classList.add('open');
+  }
+
+  function closeStudentReplyModal() {
+    document.getElementById('studentReplyModal').classList.remove('open');
+    currentReplyIdx = null;
+  }
+
+  function selectReplyTemplate(type) {
+    const item = digestItems[currentReplyIdx];
+    const name = item ? (item.person_name || 'bạn') : 'bạn';
+    let msg = '';
+
+    ['chipTplAuth', 'chipTplPass', 'chipTplLicense', 'chipTplCustom'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.style.background = '#fff'; el.style.color = 'var(--text)'; el.style.fontWeight = '500'; }
+    });
+
+    if (type === 'auth') {
+      const el = document.getElementById('chipTplAuth');
+      if (el) { el.style.background = '#eff6ff'; el.style.color = '#1d4ed8'; el.style.fontWeight = '700'; }
+      msg = `Chào ${name}, IT HIU đã tiến hành reset phương thức xác thực Microsoft Authenticator cho bạn rồi nhé.\n👉 Bạn vui lòng đăng nhập lại tài khoản sinh viên trên trình duyệt (mở tab ẩn danh), hệ thống sẽ yêu cầu quét mã QR để cài đặt lại Authenticator mới.\nChúc bạn học tập tốt! 🌸`;
+    } else if (type === 'pass') {
+      const el = document.getElementById('chipTplPass');
+      if (el) { el.style.background = '#eff6ff'; el.style.color = '#1d4ed8'; el.style.fontWeight = '700'; }
+      msg = `Chào ${name}, IT HIU đã hỗ trợ cấp lại mật khẩu email sinh viên cho bạn.\n👉 Mật khẩu tạm thời: Hiu@123456 (bạn đăng nhập và đổi lại mật khẩu mới ngay nhé).`;
+    } else if (type === 'license') {
+      const el = document.getElementById('chipTplLicense');
+      if (el) { el.style.background = '#eff6ff'; el.style.color = '#1d4ed8'; el.style.fontWeight = '700'; }
+      msg = `Chào ${name}, IT HIU đã gán bản quyền Office 365 A3 vào tài khoản sinh viên của bạn rồi nhé. Bạn đăng nhập vào portal.office.com để sử dụng hoặc tải bộ cài.`;
+    } else {
+      const el = document.getElementById('chipTplCustom');
+      if (el) { el.style.background = '#eff6ff'; el.style.color = '#1d4ed8'; el.style.fontWeight = '700'; }
+      msg = `Chào ${name}, yêu cầu hỗ trợ kỹ thuật của bạn đã được IT HIU xử lý hoàn tất rồi nhé!`;
+    }
+
+    document.getElementById('replyMessageText').value = msg;
+  }
+
+  async function confirmSendStudentReply() {
+    const item = digestItems[currentReplyIdx];
+    if (!item) return;
+
+    const msg = document.getElementById('replyMessageText').value.trim();
+    if (msg) {
+      try {
+        await navigator.clipboard.writeText(msg);
+      } catch(e) {}
+    }
+
+    // Đánh dấu đã phản hồi
+    if (!item.notes) item.notes = '';
+    if (!item.notes.includes('ĐÃ PHẢN HỒI')) {
+      item.notes = (item.notes ? item.notes + ' | ' : '') + 'ĐÃ PHẢN HỒI ZALO';
+    }
+
+    closeStudentReplyModal();
+    renderTable();
+    updateSummary();
+    showAlert('🎉 Đã sao chép tin nhắn phản hồi vào clipboard & đánh dấu [✔ Đã phản hồi] cho ' + (item.person_name || 'sinh viên') + '!', 'success');
+  }
+
+</script>
 
 <!-- Auth Overlay: Màn hình khóa đăng nhập bắt buộc -->
 <div class="auth-overlay" id="authOverlay">
@@ -153,6 +351,43 @@
   <div class="tabbar" role="tablist" aria-label="Nguồn yêu cầu Zalo">
     <button class="tab-button active" id="tabWork" onclick="switchTab('work')">💼 Zalo Công việc</button>
     <button class="tab-button" id="tabHotline" onclick="switchTab('hotline')">🎓 Zalo Sinh viên (Hotline)</button>
+  </div>
+
+  
+  <!-- Bộ Lọc Sinh Viên (Hotline) -->
+  <div class="filter-card-hotline" id="hotlineFilterCard">
+    <div class="filter-header-hotline">
+      <span>🔍</span> BỘ LỌC SINH VIÊN (HOTLINE)
+    </div>
+    <div class="filter-grid-hotline">
+      <div class="filter-item-hotline">
+        <label>Tìm kiếm (MSSV / Tên / SĐT)</label>
+        <input type="text" id="hotlineFilterSearch" class="filter-input-hotline" placeholder="Ví dụ: 2626300293, Quốc Huy..." oninput="applyHotlineFilters()">
+      </div>
+      <div class="filter-item-hotline">
+        <label>Nhóm sự cố / Mã lỗi</label>
+        <select id="hotlineFilterCategory" class="filter-select-hotline" onchange="applyHotlineFilters()">
+          <option value="all">-- Tất cả nhóm lỗi --</option>
+          <option value="auth">🔑 Microsoft Authenticator</option>
+          <option value="email">✉️ Email sinh viên / Mật khẩu</option>
+          <option value="license">📄 Bản quyền Office 365</option>
+          <option value="portal">🌐 Lỗi Portal / Đăng ký môn</option>
+        </select>
+      </div>
+      <div class="filter-item-hotline">
+        <label>Trạng thái phản hồi Zalo</label>
+        <select id="hotlineFilterSent" class="filter-select-hotline" onchange="applyHotlineFilters()">
+          <option value="all">-- Tất cả trạng thái --</option>
+          <option value="unsent">⏳ Chưa gửi phản hồi Zalo</option>
+          <option value="sent">✔ Đã gửi phản hồi Zalo</option>
+        </select>
+      </div>
+      <div class="filter-item-hotline" style="align-self: flex-end;">
+        <button class="btn btn-outline" style="width: 100%; justify-content: center;" onclick="resetHotlineFilters()">
+          🔄 Đặt lại bộ lọc
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Summary Tiles -->
@@ -323,6 +558,10 @@
     const batchBtn = document.getElementById('btnBatchTransfer');
     if (batchBtn) {
       batchBtn.style.display = tab === 'hotline' ? 'inline-flex' : 'none';
+    const filterCard = document.getElementById('hotlineFilterCard');
+    if (filterCard) {
+      filterCard.style.display = tab === 'hotline' ? 'block' : 'none';
+    }
     }
     renderTable();
     updateSummary();
@@ -419,7 +658,14 @@
           </select>
           ${item.notes && item.notes.includes('ĐÃ PHẢN HỒI') ? '<div style="font-size:10px;font-weight:700;color:#15803d;margin-top:4px;">✔ Đã phản hồi</div>' : (activeTab === 'hotline' ? '<div style="font-size:10px;font-weight:600;color:#94a3b8;margin-top:4px;">Chưa gửi</div>' : '')}
         </td>
-        <td>${activeTab === 'hotline' ? '<button class="transfer-button" onclick="openTransferDraft(' + idx + ')">Soạn chuyển</button>' : '<span style="color:var(--muted)">—</span>'}</td>
+        <td>${activeTab === 'hotline' ? `
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button class="transfer-button" onclick="openTransferDraft(${idx})">Soạn chuyển</button>
+            <button class="btn-gui-zalo ${item.notes && item.notes.includes('ĐÃ PHẢN HỒI') ? 'sent' : ''}" onclick="openStudentReplyModal(${idx})">
+              ${item.notes && item.notes.includes('ĐÃ PHẢN HỒI') ? 'Đã gửi SV' : '📤 Gửi Zalo'}
+            </button>
+          </div>
+        ` : '<span style="color:var(--muted)">—</span>'}</td>
       </tr>
       `;
     }).join('');
@@ -752,5 +998,50 @@ Lý do: Trong ${selectedList.length} việc được tick chọn, không có vi�
   // Khởi động kiểm tra xác thực bắt buộc
   checkAuth();
 </script>
+
+<!-- Modal Phản Hồi Zalo Cho Sinh Viên -->
+<div class="transfer-modal" id="studentReplyModal" role="dialog" aria-modal="true">
+  <div class="transfer-panel" style="max-width: 620px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px">
+      <h2 style="font-size:17px;font-weight:800;color:#0f766e;display:flex;align-items:center;gap:6px;">
+        <span>📤</span> Soạn Phản Hồi Gửi Lại Cho Sinh Viên (Zalo)
+      </h2>
+      <button class="btn btn-secondary" onclick="closeStudentReplyModal()">✕ Đóng</button>
+    </div>
+
+    <div style="background:#f8fafc;padding:10px 14px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:11px;color:#64748b;">Gửi đến sinh viên:</div>
+        <div style="font-size:14px;font-weight:800;color:#0f172a;" id="replyStudentName">Sinh viên</div>
+        <div style="font-size:11px;color:#0284c7;font-family:monospace;" id="replyStudentEmail"></div>
+      </div>
+      <span class="tag-hotline tag-authenticator" id="replyStudentTag">MS Authenticator</span>
+    </div>
+
+    <div style="margin-bottom: 12px;">
+      <label style="display:block;font-size:11px;font-weight:700;margin-bottom:6px;text-transform:uppercase;color:var(--muted);">CHỌN MẪU TIN NHẮN PHẢN HỒI NHANH:</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="quick-chip" id="chipTplAuth" style="background:#eff6ff;color:#1d4ed8;font-weight:700;" onclick="selectReplyTemplate('auth')">🔑 1. Đã Reset Authenticator</button>
+        <button class="quick-chip" id="chipTplPass" onclick="selectReplyTemplate('pass')">✉️ 2. Cấp lại pass Email</button>
+        <button class="quick-chip" id="chipTplLicense" onclick="selectReplyTemplate('license')">📄 3. Đã gán License 365</button>
+        <button class="quick-chip" id="chipTplCustom" onclick="selectReplyTemplate('custom')">✏️ 4. Tự soạn</button>
+      </div>
+    </div>
+
+    <label style="display:block;font-size:11px;font-weight:700;margin-bottom:6px;text-transform:uppercase;color:var(--muted);">NỘI DUNG GỬI QUA ZALO:</label>
+    <textarea id="replyMessageText" style="width:100%;min-height:160px;max-height:45vh;overflow:auto;padding:12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;line-height:1.5;"></textarea>
+
+    <div style="background:#fefce8;border:1px solid #fef08a;padding:8px 12px;border-radius:8px;font-size:11px;color:#854d0e;margin-top:10px;">
+      💡 Bấm <b>"📋 Sao chép &amp; Đánh dấu đã gửi"</b> để copy nội dung gửi qua Zalo cho SV và chuyển trạng thái sang <b>✔ Đã phản hồi</b>.
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;justify-content:flex-end;">
+      <button class="btn btn-secondary" onclick="closeStudentReplyModal()">Hủy</button>
+      <button class="btn btn-outline" onclick="window.open('https://chat.zalo.me/', '_blank')">↗ Mở Zalo Web</button>
+      <button class="btn" style="background:#15803d;color:#fff;" onclick="confirmSendStudentReply()">📋 Sao chép &amp; Đánh dấu đã gửi</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

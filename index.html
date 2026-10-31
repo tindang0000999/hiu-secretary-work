@@ -754,38 +754,75 @@ Lý do: Trong ${selectedList.length} việc được tick chọn, không có vi�
 </script>
 
 <script>
-/* Hotline manual sync: creates drafts from the local OpenZCA hotline store.
-   Runs only on the computer that hosts the collector (127.0.0.1:8766). */
+/* Hotline sync v2: the COLLECTOR only reads the local Zalo store (/api/recent).
+   The BROWSER writes the drafts with the user's own Supabase session, so it does
+   not depend on Python Supabase credentials. No Zalo message is ever sent here. */
+var NL = String.fromCharCode(10);
 window.syncHotlineNow = async function () {
   const alertEl = document.getElementById('statusAlert');
   const btn = document.getElementById('btnSyncHotline');
+  const say = (cls, html) => { if (alertEl) { alertEl.className = 'alert ' + cls; alertEl.style.display = 'block'; alertEl.innerHTML = html; } };
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang đồng bộ...'; }
-  if (alertEl) {
-    alertEl.className = 'alert';
-    alertEl.style.display = 'block';
-    alertEl.textContent = 'Đang đọc tin Hotline trên máy tính và tạo bản nháp...';
-  }
+
   try {
-    const res = await fetch('http://127.0.0.1:8766/api/sync-now', {
+    if (!desklogUser) throw new Error('Chưa đăng nhập Desklog');
+    say('', 'Đang đọc tin Hotline trên máy tính...');
+
+    const res = await fetch('http://127.0.0.1:8766/api/recent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ days: 10 })
+      body: JSON.stringify({ days: 14 })
     });
-    const r = await res.json();
-    if (!r.ok) throw new Error(r.error || 'collector error');
-    if (alertEl) {
-      alertEl.className = 'alert alert-success';
-      alertEl.innerHTML = '✅ Đồng bộ xong: <strong>' + r.drafts + '</strong> bản nháp mới từ <strong>' +
-        r.threads_seen + '</strong> hội thoại (bỏ qua ' + r.skipped_non_support + ' không phải hỗ trợ' +
-        (r.errors ? ', lỗi ' + r.errors : '') + ').';
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'collector error');
+
+    const threads = Array.isArray(data.threads) ? data.threads : [];
+    if (!threads.length) {
+      say('', 'ℹ️ Không có hội thoại sinh viên nào trong 14 ngày gần đây.');
+      return;
     }
+
+    say('', `Tìm thấy ${threads.length} hội thoại. Đang lưu bản nháp...`);
+    let created = 0, existed = 0, failed = 0;
+
+    for (const t of threads) {
+      const title = `Hỗ trợ SV: ${t.sender_name || 'Sinh viên'} (${t.email || t.thread_id})`.slice(0, 180);
+      try {
+        const dup = await desklogClient.from('work_items').select('id')
+          .eq('work_date', t.work_date).eq('title', title).limit(1);
+        if (dup.data && dup.data.length) { existed++; continue; }
+
+        const note = [
+          `Nguồn: Zalo Hotline; email=${t.email || 'chưa rõ'}; thread=${t.thread_id}; tin cuối=${t.last_msg_id || ''}`,
+          'Nội dung gần nhất (mật khẩu/OTP đã ẩn):',
+          ...(t.messages || [])
+        ].join(NL).slice(0, 5000);
+
+        const ins = await desklogClient.from('work_items').insert({
+          owner_id: desklogUser.id,
+          work_date: t.work_date,
+          person_name: t.email || t.sender_name || 'Sinh viên',
+          target_role: 'Sinh viên',
+          site: t.site || 'DBP',
+          unit: 'Chưa xác định',
+          category: t.category || 'Phần mềm',
+          title: title,
+          notes: note,
+          status: 'Mới tiếp nhận'
+        });
+        if (ins.error) throw ins.error;
+        created++;
+      } catch (e) {
+        failed++;
+      }
+    }
+
+    say(failed ? 'alert-error' : 'alert-success',
+        `✅ Đồng bộ xong: <strong>${created}</strong> bản nháp mới, ${existed} đã có sẵn${failed ? `, <strong>${failed} lỗi</strong>` : ''}.`);
     if (typeof scanZaloDateRange === 'function') await scanZaloDateRange();
   } catch (err) {
-    if (alertEl) {
-      alertEl.className = 'alert alert-error';
-      alertEl.innerHTML = '⚠️ Không gọi được bộ thu trên máy tính (127.0.0.1:8766): ' + err.message +
-        '.<br><small>Nút này chỉ chạy khi mở trang trên chính máy tính đang bật collector. Trên điện thoại hãy dùng "⚡ Quét khoảng ngày này".</small>';
-    }
+    say('alert-error',
+      `⚠️ Không đồng bộ được: ${err.message}.<br><small>Nút này chỉ chạy khi mở trang trên máy tính đang bật bộ thu (cổng 8766). Trên điện thoại hãy dùng "⚡ Quét khoảng ngày này".</small>`);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🔄 Đồng bộ Hotline ngay'; }
   }
@@ -800,7 +837,7 @@ document.addEventListener('DOMContentLoaded', function () {
   b.id = 'btnSyncHotline';
   b.className = 'btn btn-outline';
   b.textContent = '🔄 Đồng bộ Hotline ngay';
-  b.title = 'Chạy trên máy tính đang bật collector cổng 8766';
+  b.title = 'Đọc tin Zalo Hotline trên máy này và tạo bản nháp';
   b.onclick = function () { window.syncHotlineNow(); };
   scan.parentNode.insertBefore(b, scan.nextSibling);
 });

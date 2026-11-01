@@ -1426,5 +1426,94 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 })();
 </script>
+
+<script>
+/* Bổ sung ô chọn THREAD Zalo cho form "Thêm công việc thủ công",
+   để ca nhập tay cũng gửi phản hồi được. Danh sách lấy từ /api/recent. */
+(function () {
+  var NL = String.fromCharCode(10);
+  var threadsLoaded = false;
+
+  function el(id) { return document.getElementById(id); }
+
+  function ensureThreadField() {
+    var card = el('manualWorkCard');
+    if (!card) return;
+    if (el('mwThread')) return;
+
+    var wrap = document.createElement('div');
+    wrap.id = 'mwThreadWrap';
+    wrap.style.marginTop = '10px';
+    wrap.innerHTML =
+      '<label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">' +
+        'Thread Zalo (chọn hội thoại để gửi phản hồi)' +
+      '</label>' +
+      '<select id="mwThread" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px">' +
+        '<option value="">— Không gắn thread (chỉ ghi nhật ký) —</option>' +
+      '</select>' +
+      '<div id="mwThreadHint" style="font-size:12px;color:var(--muted);margin-top:4px">' +
+        'Chọn đúng hội thoại của sinh viên thì nút Gửi phản hồi mới hoạt động.' +
+      '</div>';
+
+    var notes = el('mwNotes');
+    var anchor = notes ? notes.closest('div') : null;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor);
+    else card.appendChild(wrap);
+
+    loadThreads();
+  }
+
+  async function loadThreads() {
+    if (threadsLoaded) return;
+    var sel = el('mwThread');
+    var hint = el('mwThreadHint');
+    if (!sel) return;
+    try {
+      var res = await fetch('http://127.0.0.1:8766/api/recent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 21 })
+      });
+      var data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'collector error');
+      var list = Array.isArray(data.threads) ? data.threads : [];
+      list.forEach(function (t) {
+        var label = (t.sender_name || 'Sinh viên') +
+          (t.email ? ' — ' + t.email : '') +
+          ' (' + (t.work_date || '') + ')';
+        var o = document.createElement('option');
+        o.value = t.thread_id;
+        o.textContent = label;
+        sel.appendChild(o);
+      });
+      threadsLoaded = true;
+      if (hint) hint.textContent = 'Đã tải ' + list.length + ' hội thoại Hotline gần đây.';
+    } catch (e) {
+      if (hint) hint.textContent = 'Không tải được danh sách hội thoại (cần máy chạy cổng 8766). Anh vẫn có thể gõ thread ID vào ô Ghi chú.';
+    }
+  }
+
+  var _prevSwitch = window.switchTab;
+  window.switchTab = function (t) {
+    if (typeof _prevSwitch === 'function') _prevSwitch(t);
+    if (t === 'work') { ensureThreadField(); }
+  };
+
+  var _prevSave = window.saveManualWork;
+  window.saveManualWork = async function () {
+    var sel = el('mwThread');
+    var notes = el('mwNotes');
+    if (sel && notes && sel.value && (notes.value || '').indexOf('thread=') < 0) {
+      notes.value = (notes.value ? notes.value + NL : '') + 'thread=' + sel.value;
+    }
+    if (typeof _prevSave === 'function') return _prevSave();
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    setTimeout(ensureThreadField, 600);
+    setTimeout(ensureThreadField, 1800);
+  });
+})();
+</script>
 </body>
 </html>

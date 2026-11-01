@@ -383,7 +383,7 @@
     tbody.innerHTML = visibleRows.map(({item, idx}) => {
       const autoClass = item.is_autofilled ? 'input-autofilled' : '';
       return `
-      <tr>
+      <tr data-idx="${idx}" data-db-id="${item.db_id || ''}">
         <td style="text-align: center;"><input type="checkbox" ${item.selected ? 'checked' : ''} onchange="updateSelected(${idx}, this.checked)"></td>
         <td><span class="badge badge-date">${item.work_date || ''}</span></td>
         <td><strong>${item.zalo_name || item.person_name}</strong></td>
@@ -1749,6 +1749,100 @@ document.addEventListener('DOMContentLoaded', function () {
   document.addEventListener('DOMContentLoaded', function () {
     setTimeout(ensureLink, 600);
     setTimeout(ensureLink, 2000);
+  });
+})();
+</script>
+
+<script>
+/* Nút XOÁ trên từng dòng của Thư ký + xoá hàng loạt mục đã chọn. */
+(function () {
+  function el(id) { return document.getElementById(id); }
+
+  function decorate() {
+    var tb = el('tableBody');
+    if (!tb) return;
+    var trs = tb.querySelectorAll('tr[data-idx]');
+    for (var i = 0; i < trs.length; i++) {
+      var tr = trs[i];
+      if (tr.querySelector('.del-row')) continue;
+      var tds = tr.querySelectorAll('td');
+      if (!tds.length) continue;
+      var last = tds[tds.length - 1];
+      var b = document.createElement('button');
+      b.className = 'del-row';
+      b.title = 'Xoá dòng này';
+      b.style.cssText = 'background:#fee2e2;color:#b91c1c;border:0;border-radius:7px;padding:6px 8px;cursor:pointer;font-weight:700;margin-left:6px';
+      b.textContent = '🗑';
+      b.onclick = function () {
+        var idx = parseInt(this.closest('tr').getAttribute('data-idx'), 10);
+        window.deleteRowByIndex(idx);
+      };
+      last.appendChild(b);
+    }
+  }
+
+  window.deleteRowByIndex = async function (idx) {
+    var item = (typeof digestItems !== 'undefined') ? digestItems[idx] : null;
+    if (!item) return;
+    if (!desklogUser) { alert('Chưa đăng nhập Desklog.'); return; }
+    if (!confirm('Xoá dòng này khỏi Thư ký AI?')) return;
+
+    try {
+      if (item.db_id) {
+        var res = await desklogClient.from('work_items').delete().eq('id', item.db_id);
+        if (res.error) throw res.error;
+      }
+      digestItems.splice(idx, 1);
+      if (typeof renderTable === 'function') renderTable();
+      if (typeof updateSummary === 'function') updateSummary();
+    } catch (e) {
+      alert('Không xoá được: ' + (e.message || e));
+    }
+  };
+
+  window.deleteSelectedRows = async function () {
+    var items = (typeof digestItems !== 'undefined') ? digestItems : [];
+    var chosen = [];
+    for (var i = 0; i < items.length; i++) if (items[i].selected && items[i].db_id) chosen.push(items[i]);
+    if (!chosen.length) { alert('Chưa tick chọn dòng nào (hoặc dòng chưa có trong database).'); return; }
+    if (!desklogUser) { alert('Chưa đăng nhập Desklog.'); return; }
+    if (!confirm('Xoá ' + chosen.length + ' dòng đã tick chọn?')) return;
+
+    var ok = 0, fail = 0;
+    for (var j = 0; j < chosen.length; j++) {
+      try {
+        var r = await desklogClient.from('work_items').delete().eq('id', chosen[j].db_id);
+        if (r.error) throw r.error;
+        ok++;
+      } catch (e) { fail++; }
+    }
+    alert('Đã xoá ' + ok + ' dòng' + (fail ? ', ' + fail + ' lỗi' : '') + '.');
+    if (typeof scanZaloDateRange === 'function') await scanZaloDateRange();
+  };
+
+  function ensureBulkDeleteButton() {
+    if (el('btnBulkDelete')) return;
+    var scan = Array.from(document.querySelectorAll('button')).find(function (b) {
+      return (b.textContent || '').indexOf('Quét khoảng ngày này') >= 0;
+    });
+    if (!scan || !scan.parentNode) return;
+    var d = document.createElement('button');
+    d.id = 'btnBulkDelete';
+    d.className = 'btn btn-outline';
+    d.style.cssText = 'color:#b91c1c;border-color:#fca5a5';
+    d.textContent = '🗑 Xoá mục đã chọn';
+    d.onclick = function () { window.deleteSelectedRows(); };
+    scan.parentNode.insertBefore(d, scan.nextSibling);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    ensureBulkDeleteButton();
+    var tb = el('tableBody');
+    if (tb && window.MutationObserver) {
+      new MutationObserver(function () { decorate(); }).observe(tb, { childList: true, subtree: true });
+    }
+    setTimeout(decorate, 700);
+    setTimeout(decorate, 2000);
   });
 })();
 </script>

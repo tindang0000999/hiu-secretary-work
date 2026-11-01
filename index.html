@@ -1716,5 +1716,41 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 })();
 </script>
+
+<script>
+/* Nút mở Desklog + dải thông tin cho thấy hai app dùng CHUNG một bảng dữ liệu. */
+(function () {
+  var DESKLOG_URL = 'https://tindang0000999.github.io/desklog-work/';
+
+  function el(id) { return document.getElementById(id); }
+
+  function ensureLink() {
+    if (el('btnOpenDesklog')) return;
+    var bar = document.querySelector('.action-bar');
+    if (!bar) return;
+
+    var a = document.createElement('a');
+    a.id = 'btnOpenDesklog';
+    a.href = DESKLOG_URL;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.className = 'btn btn-outline';
+    a.style.cssText = 'text-decoration:none;display:inline-flex;align-items:center;gap:6px';
+    a.textContent = '📑 Mở Desklog';
+    bar.appendChild(a);
+
+    var note = document.createElement('div');
+    note.id = 'desklogNote';
+    note.style.cssText = 'font-size:12px;color:#667e83;margin-top:6px';
+    note.textContent = 'Dữ liệu dùng chung một bảng work_items trên Supabase: việc duyệt ở đây xuất hiện ngay trong Desklog (và ngược lại).';
+    bar.parentNode.insertBefore(note, bar.nextSibling);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    setTimeout(ensureLink, 600);
+    setTimeout(ensureLink, 2000);
+  });
+})();
+</script>
 </body>
 </html>

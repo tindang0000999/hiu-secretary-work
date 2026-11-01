@@ -842,5 +842,200 @@ document.addEventListener('DOMContentLoaded', function () {
   scan.parentNode.insertBefore(b, scan.nextSibling);
 });
 </script>
+
+<script>
+/* "Nhập tin cũ": dán hội thoại Zalo đã copy -> tách email SV + tạo bản nháp.
+   Chạy hoàn toàn trong trình duyệt, dùng phiên đăng nhập của người dùng. */
+(function () {
+  var NL = String.fromCharCode(10);
+
+  function el(id) { return document.getElementById(id); }
+
+  function ensureCard() {
+    if (el('pasteOldCard')) return el('pasteOldCard');
+    var host = document.querySelector('.container');
+    if (!host) return null;
+    var tw = host.querySelector('.tablewrap');
+    var anchor = tw ? tw.closest('.card') : null;
+    var sec = document.createElement('div');
+    sec.className = 'card';
+    sec.id = 'pasteOldCard';
+    sec.style.display = 'none';
+    sec.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
+        '<h3 style="font-size:15px;font-weight:700;margin:0">📥 Nhập tin nhắn cũ (dán từ Zalo)</h3>' +
+        '<span style="font-size:12px;color:var(--muted)">Mở hội thoại trên Zalo → bôi đen → Ctrl+C → dán vào đây</span>' +
+      '</div>' +
+      '<textarea id="pasteOldText" placeholder="Dán đoạn chat vào đây. Ví dụ:' + NL + NL +
+        'Nguyễn Văn A: em chào thầy, email của em là aaa123@student.hiu.vn bị lỗi xác thực' + NL +
+        'Phòng CNTT: em thử đăng nhập lại giúp thầy' + NL + NL +
+        '(Tên người gửi: nội dung — mỗi dòng một tin, càng đúng càng tốt)" ' +
+        'style="width:100%;min-height:170px;max-height:45vh;overflow:auto;padding:12px;border:1px solid var(--border);border-radius:8px;font:inherit;line-height:1.5"></textarea>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
+        '<button type="button" class="btn btn-secondary" onclick="parseOldPaste()">🔍 Tách &amp; xem trước</button>' +
+        '<button type="button" class="btn" id="btnSaveOldPaste" style="background:#2563eb" onclick="saveOldPaste()">💾 Tạo bản nháp</button>' +
+        '<button type="button" class="btn btn-outline" onclick="clearOldPaste()">Xoá nội dung</button>' +
+      '</div>' +
+      '<div id="pasteOldHint" style="margin-top:10px;font-size:13px;color:var(--muted)"></div>' +
+      '<div id="pasteOldPreview" style="margin-top:12px"></div>';
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(sec, anchor);
+    else host.appendChild(sec);
+    return sec;
+  }
+
+  var _orig = window.switchTab;
+  window.switchTab = function (t) {
+    if (typeof _orig === 'function') _orig(t);
+    var c = ensureCard();
+    if (c) c.style.display = (t === 'hotline') ? 'block' : 'none';
+  };
+
+  function redact(t) {
+    return String(t || '').replace(/(mật khẩu|mat khau|password|otp|mã xác thực|ma xac thuc)\s*[:=]?\s*\S+/gi, '$1 [đã ẩn]');
+  }
+
+  function pickCategory(t) {
+    var low = String(t || '').toLowerCase();
+    if (low.indexOf('máy in') >= 0 || low.indexOf('kẹt giấy') >= 0 || low.indexOf('màn hình') >= 0 ||
+        low.indexOf('tai nghe') >= 0 || low.indexOf('máy tính') >= 0 || low.indexOf('laptop') >= 0) return 'Phần cứng';
+    return 'Phần mềm';
+  }
+
+  var parsedGroups = [];
+
+  window.parseOldPaste = function () {
+    var raw = (el('pasteOldText') || {}).value || '';
+    var hint = el('pasteOldHint');
+    var box = el('pasteOldPreview');
+    if (!raw.trim()) { if (hint) hint.textContent = 'Chưa có nội dung để tách.'; return; }
+
+    var lines = raw.split(new RegExp(String.fromCharCode(13) + '?' + String.fromCharCode(10)));
+    var groups = {};
+    var order = [];
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+
+      var name = '', body = line, dateStr = '', timeStr = '';
+      var m = line.match(/^\[?\s*(\d{1,2}:\d{2})(?:[,\s]+(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?)?\s*\]?\s*[-–]?\s*([^:]{1,40}):\s*(.+)$/);
+      if (m) {
+        timeStr = m[1];
+        if (m[2]) {
+          var y = m[4] || String(new Date().getFullYear());
+          if (y.length === 2) y = '20' + y;
+          dateStr = y + '-' + ('0' + m[3]).slice(-2) + '-' + ('0' + m[2]).slice(-2);
+        }
+        name = m[5].trim(); body = m[6].trim();
+      } else {
+        var m2 = line.match(/^([^:]{1,40}):\s*(.+)$/);
+        if (m2) { name = m2[1].trim(); body = m2[2].trim(); }
+      }
+
+      var em = body.match(/[A-Za-z0-9._%+-]+@student\.hiu\.vn/i);
+      var email = em ? em[0].toLowerCase() : '';
+      var key = email || name || ('unknown-' + order.length);
+      if (!groups[key]) {
+        groups[key] = { name: name, email: email, date: dateStr, lines: [] };
+        order.push(key);
+      }
+      if (!groups[key].name && name) groups[key].name = name;
+      if (dateStr && !groups[key].date) groups[key].date = dateStr;
+      groups[key].lines.push((timeStr ? timeStr + ' ' : '') + body);
+    }
+
+    parsedGroups = order.map(function (k) {
+      var g = groups[k];
+      var text = g.lines.join(NL);
+      return {
+        key: k,
+        name: g.name,
+        email: g.email,
+        work_date: g.date || new Date().toLocaleDateString('en-CA'),
+        text: redact(text),
+        category: pickCategory(text)
+      };
+    });
+
+    if (!parsedGroups.length) { if (hint) hint.textContent = 'Không tách được hội thoại nào.'; return; }
+
+    var html = '<div class="tablewrap"><table class="ui-table" style="font-size:13px"><thead><tr>' +
+      '<th style="width:34px;text-align:center"><input type="checkbox" id="pasteOldAll" checked onchange="toggleOldAll(this.checked)"></th>' +
+      '<th style="width:100px">Ngày</th><th style="width:180px">Email SV</th><th style="width:150px">Tên Zalo</th>' +
+      '<th>Nội dung (đã ẩn mật khẩu/OTP)</th></tr></thead><tbody>';
+    parsedGroups.forEach(function (g, idx) {
+      html += '<tr><td style="text-align:center"><input type="checkbox" class="pasteOldChk" data-i="' + idx + '" checked></td>' +
+        '<td>' + g.work_date + '</td>' +
+        '<td>' + (g.email ? '<b>' + g.email + '</b>' : '<span style="color:#dc2626">chưa thấy email</span>') + '</td>' +
+        '<td>' + (g.name || '—') + '</td>' +
+        '<td style="white-space:pre-wrap">' + g.text.slice(0, 220) + (g.text.length > 220 ? '…' : '') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    if (box) box.innerHTML = html;
+    if (hint) hint.textContent = 'Tách được ' + parsedGroups.length + ' hội thoại. Kiểm tra rồi bấm "Tạo bản nháp".';
+  };
+
+  window.toggleOldAll = function (v) {
+    var xs = document.querySelectorAll('.pasteOldChk');
+    for (var i = 0; i < xs.length; i++) xs[i].checked = v;
+  };
+
+  window.clearOldPaste = function () {
+    if (el('pasteOldText')) el('pasteOldText').value = '';
+    if (el('pasteOldPreview')) el('pasteOldPreview').innerHTML = '';
+    if (el('pasteOldHint')) el('pasteOldHint').textContent = '';
+    parsedGroups = [];
+  };
+
+  window.saveOldPaste = async function () {
+    var hint = el('pasteOldHint');
+    if (!parsedGroups.length) { if (hint) hint.textContent = 'Bấm "Tách & xem trước" trước đã.'; return; }
+    if (!desklogUser) { if (hint) hint.textContent = '⚠️ Chưa đăng nhập Desklog.'; return; }
+
+    var btn = el('btnSaveOldPaste');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang lưu...'; }
+    var created = 0, existed = 0, failed = 0;
+
+    var chosen = [];
+    var xs = document.querySelectorAll('.pasteOldChk');
+    for (var i = 0; i < xs.length; i++) if (xs[i].checked) chosen.push(parsedGroups[parseInt(xs[i].dataset.i, 10)]);
+
+    for (var j = 0; j < chosen.length; j++) {
+      var g = chosen[j];
+      var who = g.email || g.name || 'Sinh viên';
+      var title = ('Hỗ trợ SV: ' + who + ' (' + (g.email || g.key) + ')').slice(0, 180);
+      try {
+        var dup = await desklogClient.from('work_items').select('id')
+          .eq('work_date', g.work_date).eq('title', title).limit(1);
+        if (dup.data && dup.data.length) { existed++; continue; }
+        var ins = await desklogClient.from('work_items').insert({
+          owner_id: desklogUser.id,
+          work_date: g.work_date,
+          person_name: who,
+          target_role: 'Sinh viên',
+          site: 'DBP',
+          unit: 'Chưa xác định',
+          category: g.category,
+          title: title,
+          notes: ('Nguồn: dán tin cũ từ Zalo' + NL + g.text).slice(0, 5000),
+          status: 'Mới tiếp nhận'
+        });
+        if (ins.error) throw ins.error;
+        created++;
+      } catch (e) { failed++; }
+    }
+
+    if (hint) hint.textContent = 'Đã tạo ' + created + ' bản nháp' + (existed ? ', ' + existed + ' đã có sẵn' : '') + (failed ? ', ' + failed + ' lỗi' : '') + '.';
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Tạo bản nháp'; }
+    if (typeof scanZaloDateRange === 'function') await scanZaloDateRange();
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    ensureCard();
+    var c = el('pasteOldCard');
+    if (c) c.style.display = (typeof activeTab !== 'undefined' && activeTab === 'hotline') ? 'block' : 'none';
+  });
+})();
+</script>
 </body>
 </html>

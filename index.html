@@ -1515,5 +1515,206 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 })();
 </script>
+
+<style>
+  body.sec-hide-rowreply .reply-quick { display: none !important; }
+  #secSettingsCard .sec-row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; padding:8px 0; border-bottom:1px dashed #e6ecea; }
+  #secSettingsCard .sec-row:last-child { border-bottom:0; }
+  #secSettingsCard .sec-row label { font-size:13px; font-weight:600; }
+  #secSettingsCard input[type="text"], #secSettingsCard input[type="number"], #secSettingsCard textarea { padding:8px 10px; border:1px solid #dce5e1; border-radius:7px; font:inherit; width:100%; }
+</style>
+<script>
+/* Tab ⚙️ Cài đặt: bật/tắt khối + sửa mẫu tin + tiêu đề/tên tab + khoảng ngày mặc định.
+   Lưu localStorage (theo từng máy/trình duyệt) — không gọi model, 0 token. */
+(function () {
+  var NL = String.fromCharCode(10);
+  var KEY = 'sec_settings_v1';
+  var DEFAULTS = {
+    showPaste: true,
+    showManual: true,
+    showBulk: true,
+    showRowReply: true,
+    title: 'Thư Ký AI • Bảng Duyệt Nhật Ký Công Việc (Autofill)',
+    tabWork: '💼 Zalo Công việc',
+    tabHotline: '🎓 Zalo Sinh viên (Hotline)',
+    days: 10,
+    template: 'Bạn có thể vào tài khoản xác thực được rồi. Xem video xác thực nhé. Bạn không cần xác thực thêm phương thức số điện thoại. https://youtu.be/UITCdK_jOXM'
+  };
+
+  function el(id) { return document.getElementById(id); }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return Object.assign({}, DEFAULTS);
+      return Object.assign({}, DEFAULTS, JSON.parse(raw));
+    } catch (e) { return Object.assign({}, DEFAULTS); }
+  }
+
+  function save(cfg) {
+    try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {}
+  }
+
+  function tpl() { return load().template || DEFAULTS.template; }
+
+  function apply() {
+    var c = load();
+
+    /* khối dán tin cũ + nhập tay */
+    var paste = el('pasteOldCard'); if (paste) paste.style.display = c.showPaste ? '' : 'none';
+    var manual = el('manualWorkCard'); if (manual) manual.style.display = c.showManual ? '' : 'none';
+    if (!c.showPaste && paste) paste.dataset.secHidden = '1';
+    if (!c.showManual && manual) manual.dataset.secHidden = '1';
+
+    /* nút gửi hàng loạt + nút cấp dòng */
+    var bulk = el('btnBulkReply');
+    if (bulk) bulk.dataset.secHidden = c.showBulk ? '' : '1';
+    document.body.classList.toggle('sec-hide-rowreply', !c.showRowReply);
+
+    /* tiêu đề + tên tab */
+    var h1 = document.querySelector('.title-area h1');
+    if (h1 && c.title) h1.textContent = c.title;
+    var tw = el('tabWork'), th = el('tabHotline');
+    if (tw && c.tabWork) tw.textContent = c.tabWork;
+    if (th && c.tabHotline) th.textContent = c.tabHotline;
+
+    /* khoảng ngày mặc định */
+    var sd = el('startDate'), ed = el('endDate');
+    if (sd && ed && c.days) {
+      var end = new Date();
+      var start = new Date();
+      start.setDate(end.getDate() - (Number(c.days) - 1));
+      sd.value = start.toISOString().slice(0, 10);
+      ed.value = end.toISOString().slice(0, 10);
+    }
+  }
+
+  function ensureCard() {
+    if (el('secSettingsCard')) return el('secSettingsCard');
+    var host = document.querySelector('.container');
+    if (!host) return null;
+    var c = load();
+
+    var sec = document.createElement('div');
+    sec.className = 'card';
+    sec.id = 'secSettingsCard';
+    sec.style.display = 'none';
+    sec.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">' +
+        '<h3 style="font-size:15px;font-weight:700;margin:0">⚙️ Cài đặt Thư ký</h3>' +
+        '<span style="font-size:12px;color:#667e83">Lưu trên trình duyệt này; bấm Lưu là áp dụng ngay</span>' +
+      '</div>' +
+      '<div class="sec-row"><label><input type="checkbox" id="stShowPaste"> Hiện khối 📥 Nhập tin nhắn cũ</label>' +
+        '<label><input type="checkbox" id="stShowManual"> Hiện form ➕ Thêm công việc thủ công</label>' +
+        '<label><input type="checkbox" id="stShowBulk"> Hiện nút 📤 Gửi tất cả</label>' +
+        '<label><input type="checkbox" id="stShowRowReply"> Hiện nút 🚀 Gửi phản hồi trên từng dòng</label></div>' +
+      '<div class="sec-row"><div style="flex:1;min-width:220px"><label style="display:block;margin-bottom:4px">Tiêu đề ứng dụng</label>' +
+        '<input type="text" id="stTitle"></div>' +
+        '<div style="flex:1;min-width:160px"><label style="display:block;margin-bottom:4px">Tên tab Công việc</label>' +
+        '<input type="text" id="stTabWork"></div>' +
+        '<div style="flex:1;min-width:160px"><label style="display:block;margin-bottom:4px">Tên tab Hotline</label>' +
+        '<input type="text" id="stTabHotline"></div></div>' +
+      '<div class="sec-row"><div style="flex:0 0 160px"><label style="display:block;margin-bottom:4px">Khoảng ngày mặc định</label>' +
+        '<input type="number" id="stDays" min="1" max="90"></div></div>' +
+      '<div style="margin-top:8px"><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600">Mẫu tin nhắn gửi sinh viên</label>' +
+        '<textarea id="stTemplate" style="min-height:110px"></textarea></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">' +
+        '<button type="button" class="btn" id="stSave" style="background:#168078">💾 Lưu cài đặt</button>' +
+        '<button type="button" class="btn btn-outline" onclick="secResetSettings()">Khôi phục mặc định</button>' +
+        '<span id="stHint" style="font-size:13px;color:#667e83"></span>' +
+      '</div>';
+
+    host.appendChild(sec);
+
+    el('stShowPaste').checked = !!c.showPaste;
+    el('stShowManual').checked = !!c.showManual;
+    el('stShowBulk').checked = !!c.showBulk;
+    el('stShowRowReply').checked = !!c.showRowReply;
+    el('stTitle').value = c.title;
+    el('stTabWork').value = c.tabWork;
+    el('stTabHotline').value = c.tabHotline;
+    el('stDays').value = c.days;
+    el('stTemplate').value = c.template;
+    el('stSave').onclick = saveFromForm;
+
+    return sec;
+  }
+
+  function saveFromForm() {
+    var cfg = {
+      showPaste: el('stShowPaste').checked,
+      showManual: el('stShowManual').checked,
+      showBulk: el('stShowBulk').checked,
+      showRowReply: el('stShowRowReply').checked,
+      title: (el('stTitle').value || '').trim() || DEFAULTS.title,
+      tabWork: (el('stTabWork').value || '').trim() || DEFAULTS.tabWork,
+      tabHotline: (el('stTabHotline').value || '').trim() || DEFAULTS.tabHotline,
+      days: Math.min(90, Math.max(1, parseInt(el('stDays').value || '10', 10) || 10)),
+      template: (el('stTemplate').value || '').trim() || DEFAULTS.template
+    };
+    save(cfg);
+    apply();
+    if (el('stHint')) el('stHint').textContent = '✅ Đã lưu và áp dụng.';
+  }
+
+  window.secResetSettings = function () {
+    localStorage.removeItem(KEY);
+    var card = el('secSettingsCard');
+    if (card) card.remove();
+    ensureCard();
+    apply();
+    if (el('stHint')) el('stHint').textContent = 'Đã khôi phục mặc định.';
+  };
+
+  /* Tab thứ ba */
+  function ensureSettingsTab() {
+    if (el('tabSettings')) return;
+    var tw = el('tabWork');
+    if (!tw || !tw.parentNode) return;
+    var b = document.createElement('button');
+    b.className = 'tab-button';
+    b.id = 'tabSettings';
+    b.textContent = '⚙️ Cài đặt';
+    b.onclick = function () { window.switchTab('settings'); };
+    tw.parentNode.appendChild(b);
+  }
+
+  var _prevSwitch = window.switchTab;
+  window.switchTab = function (t) {
+    if (typeof _prevSwitch === 'function') _prevSwitch(t);
+    var card = ensureCard();
+    if (card) card.style.display = (t === 'settings') ? 'block' : 'none';
+    if (t !== 'settings') apply();
+
+    var tw = el('tabWork'), th = el('tabHotline'), ts = el('tabSettings');
+    if (tw && th && ts) {
+      tw.classList.toggle('active', t === 'work');
+      th.classList.toggle('active', t === 'hotline');
+      ts.classList.toggle('active', t === 'settings');
+    }
+    var bulk = el('btnBulkReply');
+    if (bulk && bulk.dataset.secHidden === '1') bulk.style.display = 'none';
+  };
+
+  /* Ghi đè mẫu tin để mọi nơi dùng chung cài đặt */
+  var _prevFill = window.fillReplyTemplate;
+  window.fillReplyTemplate = function () {
+    var ta = el('replyText');
+    if (ta) { ta.value = tpl(); ta.focus(); }
+    if (el('replyHint')) el('replyHint').textContent = 'Đã nạp mẫu từ Cài đặt.';
+  };
+  var _prevOpen = window.openReplyComposer;
+  window.openReplyComposer = function (idx) {
+    if (typeof _prevOpen === 'function') _prevOpen(idx);
+    var ta = el('replyText');
+    if (ta) ta.value = tpl();
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    setTimeout(function () { ensureSettingsTab(); ensureCard(); apply(); }, 700);
+    setTimeout(function () { ensureSettingsTab(); ensureCard(); apply(); }, 2200);
+  });
+})();
+</script>
 </body>
 </html>

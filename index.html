@@ -1169,5 +1169,149 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 })();
 </script>
+
+<script>
+/* Nút gửi phản hồi CẤP DÒNG cho tab Hotline + modal gửi gọn.
+   Không phụ thuộc modal "Soạn chuyển" cũ. */
+(function () {
+  var NL = String.fromCharCode(10);
+  var TEMPLATE = "Bạn có thể vào tài khoản xác thực được rồi. Xem video xác thực nhé. Bạn không cần xác thực thêm phương thức số điện thoại. https://youtu.be/UITCdK_jOXM";
+
+  function el(id) { return document.getElementById(id); }
+
+  function ensureReplyModal() {
+    if (el('replyModal')) return el('replyModal');
+    var d = document.createElement('div');
+    d.id = 'replyModal';
+    d.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:10001;align-items:center;justify-content:center;padding:14px';
+    d.innerHTML =
+      '<div style="background:#fff;border-radius:14px;width:min(640px,100%);max-height:92vh;overflow:auto;padding:18px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">' +
+          '<b id="replyTitle" style="font-size:16px">Gửi phản hồi cho sinh viên</b>' +
+          '<button type="button" class="btn btn-secondary" onclick="closeReplyModal()">Đóng</button>' +
+        '</div>' +
+        '<div id="replyWho" style="font-size:13px;color:#667e83;margin-bottom:8px"></div>' +
+        '<textarea id="replyText" style="width:100%;min-height:130px;padding:10px;border:1px solid #dce5e1;border-radius:8px;font:inherit;line-height:1.5"></textarea>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">' +
+          '<button type="button" class="btn" id="replySendBtn" style="background:#2563eb" onclick="sendReplyNow()">🚀 Gửi ngay cho sinh viên</button>' +
+          '<button type="button" class="btn btn-secondary" onclick="fillReplyTemplate()">📹 Mẫu + video</button>' +
+          '<button type="button" class="btn btn-outline" onclick="copyReplyText()">📋 Sao chép</button>' +
+          '<span id="replyHint" style="font-size:13px;color:#667e83"></span>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(d);
+    return d;
+  }
+
+  var currentIdx = null;
+
+  window.fillReplyTemplate = function () {
+    var t = el('replyText');
+    if (t) { t.value = TEMPLATE; t.focus(); }
+    if (el('replyHint')) el('replyHint').textContent = 'Đã nạp mẫu có video.';
+  };
+
+  window.copyReplyText = function () {
+    var t = el('replyText');
+    if (!t) return;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(t.value).then(function () {
+        if (el('replyHint')) el('replyHint').textContent = 'Đã sao chép.';
+      });
+    } else { t.select(); }
+  };
+
+  window.closeReplyModal = function () {
+    var m = el('replyModal');
+    if (m) m.style.display = 'none';
+    currentIdx = null;
+  };
+
+  function threadFromNotes(notes) {
+    var m = String(notes || '').match(/thread=([^\s;]+)/);
+    return m ? m[1] : '';
+  }
+
+  window.openReplyComposer = function (idx) {
+    ensureReplyModal();
+    currentIdx = idx;
+    var item = (typeof digestItems !== 'undefined' && digestItems[idx]) ? digestItems[idx] : null;
+    if (!item) return;
+    el('replyTitle').textContent = 'Gửi phản hồi: ' + (item.person_name || 'sinh viên');
+    el('replyWho').textContent = (item.unit || '') + ' • ' + (item.site || '') + ' • ' + (item.category || '');
+    el('replyText').value = TEMPLATE;
+    el('replyHint').textContent = '';
+    el('replyModal').style.display = 'flex';
+  };
+
+  window.sendReplyNow = async function () {
+    var item = (typeof digestItems !== 'undefined' && currentIdx !== null) ? digestItems[currentIdx] : null;
+    var text = (el('replyText') || {}).value || '';
+    if (!item) { if (el('replyHint')) el('replyHint').textContent = 'Không xác định được sinh viên.'; return; }
+    if (!text.trim()) { if (el('replyHint')) el('replyHint').textContent = 'Chưa có nội dung.'; return; }
+
+    var thread = threadFromNotes(item.notes) || item.sender_id || '';
+    if (!thread) { if (el('replyHint')) el('replyHint').textContent = 'Thiếu thread Zalo của sinh viên (chỉ gửi được với ca lấy từ Zalo).'; return; }
+
+    var ok = confirm('Gửi tin nhắn này tới Zalo của ' + (item.person_name || 'sinh viên') + '?');
+    if (!ok) return;
+
+    var btn = el('replySendBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang gửi...'; }
+    try {
+      var res = await fetch('http://127.0.0.1:8766/api/send-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thread_id: thread, message: text, item_id: item.db_id })
+      });
+      var r = await res.json();
+      if (r.ok) {
+        if (el('replyHint')) el('replyHint').textContent = '✅ Đã gửi thành công.';
+        item.status = 'Hoàn thành';
+        if (typeof renderTable === 'function') renderTable();
+        setTimeout(function () { closeReplyModal(); if (typeof scanZaloDateRange === 'function') scanZaloDateRange(); }, 900);
+      } else {
+        if (el('replyHint')) el('replyHint').textContent = '⚠️ Lỗi gửi: ' + (r.error || 'không rõ');
+      }
+    } catch (e) {
+      if (el('replyHint')) el('replyHint').textContent = '⚠️ Không gọi được bộ gửi (8766): ' + e.message;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🚀 Gửi ngay cho sinh viên'; }
+    }
+  };
+
+  /* Thêm nút vào từng dòng của tab Hotline, dựa trên nút Soạn chuyển đã có. */
+  function decorateRows() {
+    var tb = el('tableBody');
+    if (!tb) return;
+    var btns = tb.querySelectorAll('.transfer-button');
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i];
+      var cell = b.parentNode;
+      if (!cell || cell.querySelector('.reply-quick')) continue;
+      var m = (b.getAttribute('onclick') || '').match(/openTransferDraft\((\d+)\)/);
+      if (!m) continue;
+      var idx = m[1];
+      var nb = document.createElement('button');
+      nb.className = 'reply-quick';
+      nb.style.cssText = 'background:#2563eb;color:#fff;border:0;border-radius:7px;padding:6px 9px;cursor:pointer;font-weight:700;margin-left:6px;white-space:nowrap';
+      nb.textContent = '🚀 Gửi phản hồi';
+      nb.setAttribute('data-idx', idx);
+      nb.onclick = function () { window.openReplyComposer(parseInt(this.getAttribute('data-idx'), 10)); };
+      cell.appendChild(nb);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    ensureReplyModal();
+    var tb = el('tableBody');
+    if (tb && window.MutationObserver) {
+      new MutationObserver(function () { decorateRows(); }).observe(tb, { childList: true, subtree: true });
+    }
+    setTimeout(decorateRows, 800);
+    setTimeout(decorateRows, 2000);
+  });
+})();
+</script>
 </body>
 </html>

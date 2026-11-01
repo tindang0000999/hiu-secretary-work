@@ -1313,5 +1313,118 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 })();
 </script>
+
+<script>
+/* Gửi phản hồi HÀNG LOẠT cho các ca Hotline đã Hoàn thành & chưa phản hồi.
+   0 token: chỉ gọi API nội bộ 8766 -> openzca -> Zalo. Có xác nhận trước khi gửi. */
+(function () {
+  var TEMPLATE = "Bạn có thể vào tài khoản xác thực được rồi. Xem video xác thực nhé. Bạn không cần xác thực thêm phương thức số điện thoại. https://youtu.be/UITCdK_jOXM";
+
+  function el(id) { return document.getElementById(id); }
+
+  function isHotline(it) {
+    return String(it.target_role || '').toLowerCase() === 'sinh viên' ||
+           String(it.source_channel || '').toLowerCase().indexOf('hotline') >= 0;
+  }
+
+  function threadOf(it) {
+    var m = String(it.notes || '').match(/thread=([^\s;]+)/);
+    return m ? m[1] : '';
+  }
+
+  function pendingList() {
+    var arr = (typeof digestItems !== 'undefined' && Array.isArray(digestItems)) ? digestItems : [];
+    return arr.filter(function (it) {
+      if (!isHotline(it)) return false;
+      if (String(it.status || '').trim() !== 'Hoàn thành') return false;
+      if (String(it.notes || '').indexOf('ĐÃ PHẢN HỒI') >= 0) return false;
+      return !!threadOf(it);
+    });
+  }
+
+  function ensureButton() {
+    if (el('btnBulkReply')) return el('btnBulkReply');
+    var scan = Array.from(document.querySelectorAll('button')).find(function (b) {
+      return (b.textContent || '').indexOf('Quét khoảng ngày này') >= 0;
+    });
+    if (!scan || !scan.parentNode) return null;
+    var b = document.createElement('button');
+    b.id = 'btnBulkReply';
+    b.className = 'btn';
+    b.style.cssText = 'background:#7c3aed;color:#fff;display:none';
+    b.textContent = '📤 Gửi tất cả ca đã hoàn thành';
+    b.onclick = function () { window.sendBulkReplies(); };
+    scan.parentNode.insertBefore(b, scan.nextSibling);
+    return b;
+  }
+
+  var _prev = window.switchTab;
+  window.switchTab = function (t) {
+    if (typeof _prev === 'function') _prev(t);
+    var b = ensureButton();
+    if (b) b.style.display = (t === 'hotline') ? 'inline-flex' : 'none';
+    refreshLabel();
+  };
+
+  function refreshLabel() {
+    var b = el('btnBulkReply');
+    if (!b) return;
+    var n = pendingList().length;
+    b.textContent = n ? ('📤 Gửi tất cả (' + n + ' ca chờ)') : '📤 Gửi tất cả ca đã hoàn thành';
+    b.disabled = (n === 0);
+    b.style.opacity = n ? '1' : '0.55';
+  }
+
+  window.sendBulkReplies = async function () {
+    var list = pendingList();
+    var alertEl = el('statusAlert');
+    var say = function (cls, html) { if (alertEl) { alertEl.className = 'alert ' + cls; alertEl.style.display = 'block'; alertEl.innerHTML = html; } };
+
+    if (!list.length) { say('', 'Không có ca nào ở trạng thái Hoàn thành mà chưa phản hồi.'); return; }
+    if (!confirm('Gửi tin nhắn mẫu tới ' + list.length + ' sinh viên?')) return;
+
+    var btn = el('btnBulkReply');
+    if (btn) btn.disabled = true;
+    var ok = 0, fail = 0;
+
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i];
+      if (alertEl) {
+        alertEl.className = 'alert';
+        alertEl.style.display = 'block';
+        alertEl.textContent = 'Đang gửi ' + (i + 1) + '/' + list.length + '...';
+      }
+      try {
+        var res = await fetch('http://127.0.0.1:8766/api/send-reply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ thread_id: threadOf(it), message: TEMPLATE, item_id: it.db_id })
+        });
+        var r = await res.json();
+        if (r.ok) { ok++; it.status = 'Hoàn thành'; } else { fail++; }
+      } catch (e) { fail++; }
+      await new Promise(function (r) { setTimeout(r, 500); });
+    }
+
+    say(fail ? 'alert-error' : 'alert-success',
+        '📤 Đã gửi <strong>' + ok + '</strong> tin' + (fail ? ', <strong>' + fail + ' lỗi</strong>' : '') + '.');
+    refreshLabel();
+    if (btn) btn.disabled = false;
+    if (typeof scanZaloDateRange === 'function') await scanZaloDateRange();
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    ensureButton();
+    var b = el('btnBulkReply');
+    if (b) b.style.display = (typeof activeTab !== 'undefined' && activeTab === 'hotline') ? 'inline-flex' : 'none';
+    refreshLabel();
+    var tb = el('tableBody');
+    if (tb && window.MutationObserver) {
+      new MutationObserver(function () { refreshLabel(); }).observe(tb, { childList: true, subtree: true });
+    }
+    setInterval(refreshLabel, 4000);
+  });
+})();
+</script>
 </body>
 </html>

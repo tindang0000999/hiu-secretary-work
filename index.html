@@ -1037,5 +1037,137 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 })();
 </script>
+
+<script>
+/* "Thêm công việc thủ công" cho tab Zalo Công việc.
+   Ghi trực tiếp vào work_items bằng phiên đăng nhập của người dùng. */
+(function () {
+  function el(id) { return document.getElementById(id); }
+
+  function ensureManualCard() {
+    if (el('manualWorkCard')) return el('manualWorkCard');
+    var host = document.querySelector('.container');
+    if (!host) return null;
+    var tw = host.querySelector('.tablewrap');
+    var anchor = tw ? tw.closest('.card') : null;
+
+    var sec = document.createElement('div');
+    sec.className = 'card';
+    sec.id = 'manualWorkCard';
+    sec.style.display = 'none';
+    sec.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
+        '<h3 style="font-size:15px;font-weight:700;margin:0">➕ Thêm công việc thủ công</h3>' +
+        '<span style="font-size:12px;color:var(--muted)">Dùng khi việc đến từ điện thoại, gặp trực tiếp hoặc Zalo không tự bắt được</span>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">' +
+        '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Ngày</label>' +
+          '<input type="date" id="mwDate" class="ui-input" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px"></div>' +
+        '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Người yêu cầu</label>' +
+          '<input type="text" id="mwPerson" placeholder="Họ tên người cần hỗ trợ" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px"></div>' +
+        '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Đối tượng</label>' +
+          '<select id="mwRole" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px">' +
+            '<option value="Nhân viên">Nhân viên</option>' +
+            '<option value="Giảng viên">Giảng viên</option>' +
+            '<option value="Sinh viên">Sinh viên</option>' +
+            '<option value="Khác">Khác</option>' +
+          '</select></div>' +
+        '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Cơ sở</label>' +
+          '<select id="mwSite" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px">' +
+            '<option value="DBP">DBP</option><option value="120HB">120HB</option><option value="D2">D2</option>' +
+          '</select></div>' +
+        '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Đơn vị / Phòng ban</label>' +
+          '<input type="text" id="mwUnit" placeholder="VD: Khoa Y" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px"></div>' +
+        '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Loại hỗ trợ</label>' +
+          '<select id="mwCategory" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px">' +
+            '<option value="Phần mềm">Phần mềm</option><option value="Phần cứng">Phần cứng</option>' +
+          '</select></div>' +
+        '<div><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Trạng thái</label>' +
+          '<select id="mwStatus" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px">' +
+            '<option value="Mới tiếp nhận">Mới tiếp nhận</option>' +
+            '<option value="Đang xử lý">Đang xử lý</option>' +
+            '<option value="Hoàn thành">Hoàn thành</option>' +
+          '</select></div>' +
+      '</div>' +
+      '<div style="margin-top:10px"><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Tiêu đề công việc</label>' +
+        '<input type="text" id="mwTitle" placeholder="Tóm tắt ngắn gọn việc đã làm" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px"></div>' +
+      '<div style="margin-top:10px"><label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Ghi chú</label>' +
+        '<textarea id="mwNotes" placeholder="Chi tiết thêm (không nhập mật khẩu/OTP)" style="width:100%;min-height:90px;padding:10px;border:1px solid var(--border);border-radius:8px;font:inherit"></textarea></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">' +
+        '<button type="button" class="btn" id="mwSave" style="background:#2563eb" onclick="saveManualWork()">💾 Lưu công việc</button>' +
+        '<button type="button" class="btn btn-outline" onclick="clearManualWork()">Xoá trắng</button>' +
+        '<span id="mwHint" style="font-size:13px;color:var(--muted)"></span>' +
+      '</div>';
+
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(sec, anchor);
+    else host.appendChild(sec);
+
+    if (el('mwDate') && !el('mwDate').value) el('mwDate').value = new Date().toLocaleDateString('en-CA');
+    return sec;
+  }
+
+  var _prevSwitch = window.switchTab;
+  window.switchTab = function (t) {
+    if (typeof _prevSwitch === 'function') _prevSwitch(t);
+    var c = ensureManualCard();
+    if (c) c.style.display = (t === 'work') ? 'block' : 'none';
+  };
+
+  window.clearManualWork = function () {
+    ['mwPerson', 'mwUnit', 'mwTitle', 'mwNotes'].forEach(function (id) { if (el(id)) el(id).value = ''; });
+    if (el('mwDate')) el('mwDate').value = new Date().toLocaleDateString('en-CA');
+    if (el('mwHint')) el('mwHint').textContent = '';
+  };
+
+  window.saveManualWork = async function () {
+    var hint = el('mwHint');
+    var say = function (msg, color) { if (hint) { hint.textContent = msg; hint.style.color = color || 'var(--muted)'; } };
+    if (!desklogUser) { say('Chưa đăng nhập Desklog.', '#dc2626'); return; }
+
+    var person = (el('mwPerson') || {}).value || '';
+    var title = (el('mwTitle') || {}).value || '';
+    person = person.trim(); title = title.trim();
+    if (!person || !title) { say('Cần nhập Người yêu cầu và Tiêu đề.', '#dc2626'); return; }
+
+    var btn = el('mwSave');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang lưu...'; }
+
+    try {
+      var dup = await desklogClient.from('work_items').select('id')
+        .eq('work_date', el('mwDate').value).eq('title', title.slice(0, 180)).limit(1);
+      if (dup.data && dup.data.length) {
+        say('Đã có công việc trùng ngày + tiêu đề, không tạo thêm.', '#b45309');
+      } else {
+        var ins = await desklogClient.from('work_items').insert({
+          owner_id: desklogUser.id,
+          work_date: el('mwDate').value,
+          person_name: person,
+          target_role: el('mwRole').value,
+          site: el('mwSite').value,
+          unit: (el('mwUnit').value || 'Chưa xác định').trim(),
+          category: el('mwCategory').value,
+          title: title.slice(0, 180),
+          notes: ('Nguồn: nhập tay' + String.fromCharCode(10) + ((el('mwNotes') || {}).value || '')).slice(0, 5000),
+          status: el('mwStatus').value
+        });
+        if (ins.error) throw ins.error;
+        say('✅ Đã lưu công việc.', '#15803d');
+        clearManualWork();
+        if (typeof scanZaloDateRange === 'function') await scanZaloDateRange();
+      }
+    } catch (e) {
+      say('Lỗi: ' + (e.message || e), '#dc2626');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Lưu công việc'; }
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    ensureManualCard();
+    var c = el('manualWorkCard');
+    if (c) c.style.display = (typeof activeTab !== 'undefined' && activeTab === 'work') ? 'block' : 'none';
+  });
+})();
+</script>
 </body>
 </html>
